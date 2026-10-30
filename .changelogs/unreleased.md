@@ -5,3 +5,6 @@
 * Avoid loading the client merchant screen class during dedicated-server initialization.
 * Replace the checked-in optional-mod JARs with pinned Maven dependencies.
 * Use Baubles Expanded 2.2.26-GTNH for compilation and client/server development, while keeping Baubles support optional.
+* Fix crucible save loading, alloy bookkeeping and server-side casting synchronization.
+* Save mold inventory and lid changes reliably, clear stale client output and handle empty extraction safely.
+* Reuse existing textures for the hell crucible, smasher and steamed foods to remove missing-texture warnings.

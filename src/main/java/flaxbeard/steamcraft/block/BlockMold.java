@@ -146,6 +146,9 @@ public class BlockMold extends BlockContainer implements IWrenchable {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float subX, float subY, float subZ) {
+        if (world.isRemote) {
+            return false;
+        }
         TileEntityMold tile = (TileEntityMold) world.getTileEntity(x, y, z);
         boolean editingMold = false;
         if (player.getHeldItem() != null) {
@@ -159,21 +162,22 @@ public class BlockMold extends BlockContainer implements IWrenchable {
         if (editingMold) {
             if (tile.open) {
                 if (tile.mold[0] != null) {
-                    if (!world.isRemote) {
-                        if (!player.capabilities.isCreativeMode) {
-                            tile.dropItem(tile.mold[0]);
-                        }
+                    if (!player.capabilities.isCreativeMode) {
+                        tile.dropItem(tile.mold[0]);
                     }
                     tile.mold[0] = null;
+                    tile.markDirty();
                     world.markBlockForUpdate(x, y, z);
 
                 }
                 if (player.getHeldItem() != null) {
                     if (player.getHeldItem().getItem() instanceof ICrucibleMold) {
-                        tile.mold[0] = player.getHeldItem();
+                        tile.mold[0] = player.getHeldItem().copy();
+                        tile.mold[0].stackSize = 1;
                         if (!player.capabilities.isCreativeMode) {
-                            player.inventory.setInventorySlotContents(player.inventory.currentItem, null);
+                            player.inventory.decrStackSize(player.inventory.currentItem, 1);
                         }
+                        tile.markDirty();
                         world.markBlockForUpdate(x, y, z);
 
                     }
@@ -183,6 +187,7 @@ public class BlockMold extends BlockContainer implements IWrenchable {
             if (tile.changeTicks == 0 && (player.getHeldItem() == null || !(player.getHeldItem().getItem() instanceof ItemBlock))) {
                 tile.open = !tile.open;
                 tile.changeTicks = 20;
+                tile.markDirty();
                 world.markBlockForUpdate(x, y, z);
 
             }

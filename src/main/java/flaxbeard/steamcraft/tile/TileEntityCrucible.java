@@ -41,14 +41,24 @@ public class TileEntityCrucible extends TileEntity {
     @Override
     public void readFromNBT(NBTTagCompound par1NBTTagCompound) {
         super.readFromNBT(par1NBTTagCompound);
-        NBTTagList nbttaglist = (NBTTagList) par1NBTTagCompound.getTag("liquids");
+        readLiquids(par1NBTTagCompound);
+        targetFill = getFill();
+        hasUpdated = true;
+    }
 
-        for (int i = 0; i < nbttaglist.tagCount(); ++i) {
-            NBTTagCompound nbttagcompound1 = nbttaglist.getCompoundTagAt(i);
-            CrucibleLiquid liquid = SteamcraftRegistry.getLiquidFromName(nbttagcompound1.getString("name"));
-            if (liquid != null) {
-                this.contents.add(liquid);
-                this.number.put(liquid, (int) nbttagcompound1.getShort("amount"));
+    private void readLiquids(NBTTagCompound nbt) {
+        contents.clear();
+        number.clear();
+        NBTTagList liquids = nbt.getTagList("liquids", 10);
+        for (int i = 0; i < liquids.tagCount(); i++) {
+            NBTTagCompound entry = liquids.getCompoundTagAt(i);
+            CrucibleLiquid liquid = SteamcraftRegistry.getLiquidFromName(entry.getString("name"));
+            int amount = entry.getShort("amount");
+            if (liquid != null && amount > 0) {
+                if (!contents.contains(liquid)) {
+                    contents.add(liquid);
+                }
+                number.put(liquid, amount);
             }
         }
     }
@@ -94,20 +104,11 @@ public class TileEntityCrucible extends TileEntity {
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         super.onDataPacket(net, pkt);
         NBTTagCompound access = pkt.func_148857_g();
-        NBTTagList nbttaglist = (NBTTagList) access.getTag("liquids");
-
-        contents = new ArrayList<CrucibleLiquid>();
-        number = new HashMap<CrucibleLiquid, Integer>();
+        readLiquids(access);
         if (this.tipTicks == 0) {
             this.tipTicks = access.getInteger("tipTicks");
         }
         this.tipping = access.getBoolean("tipping");
-        for (int i = 0; i < nbttaglist.tagCount(); ++i) {
-            NBTTagCompound nbttagcompound1 = nbttaglist.getCompoundTagAt(i);
-            CrucibleLiquid liquid = SteamcraftRegistry.getLiquidFromName(nbttagcompound1.getString("name"));
-            this.contents.add(liquid);
-            this.number.put(liquid, (int) nbttagcompound1.getShort("amount"));
-        }
         worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
     }
 
@@ -162,35 +163,17 @@ public class TileEntityCrucible extends TileEntity {
                 isPowered = false;
             }
         }
-        for (CrucibleLiquid liquid : SteamcraftRegistry.liquids) {
-            if (liquid.recipe != null) {
+        if (!worldObj.isRemote) {
+            for (CrucibleLiquid liquid : SteamcraftRegistry.liquids) {
                 CrucibleFormula recipe = liquid.recipe;
-                if (recipe.matches(contents, number, recipe)) {
-                    int currNum = number.get(recipe.liquid1);
-                    currNum -= recipe.liquid1num;
-                    if (currNum == 0) {
-                        contents.remove(recipe.liquid1);
-                    }
-                    number.remove(recipe.liquid1);
-                    number.put(recipe.liquid1, currNum);
-
-                    currNum = number.get(recipe.liquid2);
-                    currNum -= recipe.liquid2num;
-                    if (currNum == 0) {
-                        contents.remove(recipe.liquid2);
-                    }
-                    number.remove(recipe.liquid2);
-                    number.put(recipe.liquid2, currNum);
-
-                    if (!number.containsKey(liquid)) {
+                if (recipe != null && recipe.matches(contents, number, recipe)) {
+                    consumeLiquid(recipe.liquid1, recipe.liquid1num);
+                    consumeLiquid(recipe.liquid2, recipe.liquid2num);
+                    if (!contents.contains(liquid)) {
                         contents.add(liquid);
                         number.put(liquid, 0);
                     }
-                    currNum = number.get(liquid);
-                    currNum += recipe.output;
-                    //	//Steamcraft.log.debug(currNum);
-                    number.remove(liquid);
-                    number.put(liquid, currNum);
+                    number.put(liquid, number.get(liquid) + recipe.output);
                     needsUpdate = true;
                 }
             }
@@ -199,12 +182,22 @@ public class TileEntityCrucible extends TileEntity {
             this.lastComparatorOutput = this.getComparatorOutput();
             this.markDirty();
         }
-        if (needsUpdate) {
-            //Steamcraft.log.debug("UDPATE");
+        if (needsUpdate && !worldObj.isRemote) {
+            markDirty();
             worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
             needsUpdate = false;
         }
 
+    }
+
+    private void consumeLiquid(CrucibleLiquid liquid, int amount) {
+        int remaining = number.get(liquid) - amount;
+        if (remaining == 0) {
+            contents.remove(liquid);
+            number.remove(liquid);
+        } else {
+            number.put(liquid, remaining);
+        }
     }
 
     public int getFill() {
@@ -235,6 +228,7 @@ public class TileEntityCrucible extends TileEntity {
                 this.hasUpdated = false;
                 this.targetFill = fill + amount;
                 needsUpdate = true;
+                markDirty();
 
             }
         }

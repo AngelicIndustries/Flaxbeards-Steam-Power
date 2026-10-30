@@ -106,7 +106,7 @@ public class SteamcraftBlocks {
             crucible = new BlockSteamcraftCrucible().setCreativeTab(Steamcraft.tab).setBlockName("steamcraft:crucible").setBlockTextureName("steamcraft:crucible").setHardness(3.5F);
             GameRegistry.registerBlock(crucible, "crucible");
             if (Config.enableHellCrucible) {
-                hellCrucible = new BlockSteamcraftCrucible().setCreativeTab(Steamcraft.tab).setBlockName("steamcraft:hellCrucible").setBlockTextureName("steamcraft:hellCrucible").setHardness(3.5F);
+                hellCrucible = new BlockSteamcraftCrucible().setCreativeTab(Steamcraft.tab).setBlockName("steamcraft:hellCrucible").setBlockTextureName("steamcraft:crucible").setHardness(3.5F);
                 GameRegistry.registerBlock(hellCrucible, "hellCrucible");
             }
         }
@@ -184,7 +184,7 @@ public class SteamcraftBlocks {
         }
 
         if (Config.enableSmasher) {
-            smasher = new BlockSmasher().setCreativeTab(Steamcraft.tab).setBlockName("steamcraft:smasher").setHardness(5.0F).setResistance(10.0F);
+            smasher = new BlockSmasher().setCreativeTab(Steamcraft.tab).setBlockName("steamcraft:smasher").setBlockTextureName("steamcraft:blockBrass").setHardness(5.0F).setResistance(10.0F);
             GameRegistry.registerBlock(smasher, "smasher");
             dummy = new BlockDummy().setBlockName("steamcraft:dummy");
             GameRegistry.registerBlock(dummy, "dummy");

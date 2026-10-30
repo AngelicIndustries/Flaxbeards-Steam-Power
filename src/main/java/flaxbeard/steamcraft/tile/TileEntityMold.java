@@ -60,6 +60,8 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
 
         if (access.hasKey("inventory")) {
             this.inventory[0] = ItemStack.loadItemStackFromNBT(access.getCompoundTag("inventory"));
+        } else {
+            this.inventory[0] = null;
         }
 
         if (access.hasKey("mold")) {
@@ -80,6 +82,8 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
 
         if (nbt.hasKey("inventory")) {
             this.inventory[0] = ItemStack.loadItemStackFromNBT(nbt.getCompoundTag("inventory"));
+        } else {
+            this.inventory[0] = null;
         }
 
         if (nbt.hasKey("mold")) {
@@ -119,7 +123,7 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
     public void pour(CrucibleLiquid liquid) {
         this.inventory[0] = ((ICrucibleMold) mold[0].getItem()).getItemFromLiquid(liquid);
         this.inventory[0].stackSize = 1;
-        this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        inventoryChanged();
     }
 
     public void dropItem(ItemStack item) {
@@ -139,17 +143,18 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
 
     @Override
     public ItemStack decrStackSize(int slot, int amt) {
-        this.worldObj.markBlockForUpdate(this.xCoord, this.yCoord, this.zCoord);
-        if (this.inventory[slot].stackSize <= amt) {
-            ItemStack itemstack = this.inventory[slot];
-            this.inventory[slot] = null;
-            return itemstack;
+        if (inventory[slot] == null || amt <= 0) {
+            return null;
         }
-        ItemStack itemstack = this.inventory[slot].splitStack(amt);
-        if (this.inventory[slot].stackSize == 0) {
-            this.inventory[slot] = null;
+        ItemStack result;
+        if (inventory[slot].stackSize <= amt) {
+            result = inventory[slot];
+            inventory[slot] = null;
+        } else {
+            result = inventory[slot].splitStack(amt);
         }
-        return itemstack;
+        inventoryChanged();
+        return result;
     }
 
     @Override
@@ -157,6 +162,7 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
         if (this.inventory[slot] != null) {
             ItemStack itemstack = this.inventory[slot];
             this.inventory[slot] = null;
+            inventoryChanged();
             return itemstack;
         }
         return null;
@@ -165,6 +171,14 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
     @Override
     public void setInventorySlotContents(int slot, ItemStack stack) {
         this.inventory[slot] = stack;
+        inventoryChanged();
+    }
+
+    private void inventoryChanged() {
+        markDirty();
+        if (worldObj != null && !worldObj.isRemote) {
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        }
     }
 
     @Override
@@ -223,11 +237,10 @@ public class TileEntityMold extends TileEntity implements ISidedInventory {
         if (this.changeTicks > 0) {
             changeTicks--;
         }
-        if (open && inventory[0] != null && changeTicks < 10) {
-            if (!this.worldObj.isRemote) {
-                dropItem(inventory[0]);
-            }
+        if (!worldObj.isRemote && open && inventory[0] != null && changeTicks < 10) {
+            dropItem(inventory[0]);
             this.inventory[0] = null;
+            inventoryChanged();
         }
         //worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
 

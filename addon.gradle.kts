@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.testing.Test
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.language.jvm.tasks.ProcessResources
@@ -60,4 +63,12 @@ tasks.named<ProcessResources>("processResources") {
     from("licenses") {
         into("assets/steamcraft/licenses")
     }
+}
+
+// Minecraft 1.7.10 uses reflection that needs the Java 8 runtime outside LaunchWrapper.
+val testToolchains = extensions.getByType<JavaToolchainService>()
+tasks.withType<Test>().configureEach {
+    javaLauncher.set(testToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
 }

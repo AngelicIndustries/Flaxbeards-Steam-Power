@@ -2,6 +2,7 @@ package flaxbeard.steamcraft.item;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraft.client.renderer.texture.IIconRegister;
 import net.minecraft.item.ItemFood;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.IIcon;
@@ -28,6 +29,12 @@ public class ItemSteamedFood extends ItemFood {
         super(food.func_150905_g(foodStack) + 2, food.func_150906_h(foodStack) + 0.2F, food.isWolfsFavoriteMeat());
         baseFood = food;
         baseFoodStack = foodStack;
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void registerIcons(IIconRegister register) {
+        // getIconFromDamage uses the original food's icon, so no separate texture is needed.
     }
 
     @Override
