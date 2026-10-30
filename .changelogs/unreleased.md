@@ -3,3 +3,5 @@
 * Add the shared development environment, with Tinkers' Construct remaining optional and absent from dev runs.
 * Update project metadata and include the mod license and third-party notices in built jars.
 * Avoid loading the client merchant screen class during dedicated-server initialization.
+* Replace the checked-in optional-mod JARs with pinned Maven dependencies.
+* Use Baubles Expanded 2.2.26-GTNH for compilation and client/server development, while keeping Baubles support optional.

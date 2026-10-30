@@ -20,7 +20,7 @@ tasks.withType<JavaExec>().configureEach {
             }
         }
         doFirst("stripClientOnlyMods") {
-            val clientOnlyModIds = listOf("angelica", "ModularUI2", "Baubles-Expanded", "catalogue")
+            val clientOnlyModIds = listOf("angelica", "ModularUI2", "catalogue")
             classpath = classpath.filter { file ->
                 clientOnlyModIds.none { file.name.contains(it, ignoreCase = true) }
             }
