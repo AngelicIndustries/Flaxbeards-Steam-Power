@@ -1,0 +1,15 @@
+[
+  {
+    "modid": "${modId}",
+    "name": "${modName}",
+    "description": "Metal casting, steam machinery and upgradeable equipment for Minecraft 1.7.10.",
+    "version": "${modVersion}",
+    "mcversion": "${minecraftVersion}",
+    "url": "https://github.com/AngelicIndustries/Flaxbeards-Steam-Power",
+    "authorList": ["Flaxbeard", "SatanicSanta", "xbony2", "dmillerw", "Zenith", "Angelic Industries"],
+    "credits": "Esteemed Innovation, H-QueerCoded and mist475 for the original mod and previous maintenance.",
+    "logoFile": "steamcraftlogoblank.png",
+    "screenshots": [],
+    "dependencies": []
+  }
+]

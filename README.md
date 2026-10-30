@@ -1,19 +1,45 @@
-![Flaxbeard's Steam Power](https://github.com/Esteemed-Innovation/Flaxbeards-Steam-Power-Resources/blob/master/src/main/resources/steamcraftlogoblank.png)
+# Flaxbeard's Steam Power
 
-[![Ready Issues](https://badge.waffle.io/Esteemed-Innovation/Flaxbeards-Steam-Power.png?label=ready&title=Ready)](https://waffle.io/Esteemed-Innovation/Flaxbeards-Steam-Power)
-[![Build Status](https://travis-ci.org/Esteemed-Innovation/Flaxbeards-Steam-Power.svg?branch=master)](https://travis-ci.org/Esteemed-Innovation/Flaxbeards-Steam-Power)
-[![Total Downloads](http://modshields.herokuapp.com/totaldl?id=flaxbeards-steam-power)](http://minecraft.curseforge.com/projects/flaxbeards-steam-power)
-[![Latest Version](http://modshields.herokuapp.com/latestversion?id=flaxbeards-steam-power)](http://minecraft.curseforge.com/projects/flaxbeards-steam-power/files/latest)
-[![Wiki Status](http://modshields.herokuapp.com/wiki?article=Flaxbeard's Steam Power)](http://ftb.gamepedia.com/Flaxbeard's Steam Power)
+Metal casting, steam machinery and upgradeable equipment for Minecraft 1.7.10.
 
-Flaxbeard's Steam Power, or FSP for short, is a tech mod for Minecraft based on steam power as its core. The mod includes a variety of steam tech, with upgradeable steam powered armor and tools and steam powered machinery to aid the player in a fun and innovative way.
+<img src="images/logo.png" alt="Flaxbeard's Steam Power" width="400">
 
-The goal of FSP is innovative content that encourages fun play rather than trying to one-up other tech mods. FSP is currently in beta.
+[![hub](images/badges/github.png)](https://github.com/AngelicIndustries/Flaxbeards-Steam-Power/releases)
+[![cord](images/badges/cord.png)](https://discord.gg/xAWCqGrguG)
+![forge](images/badges/forge.png)
 
-## Information and downloads
-* Information can be found on the [FTB Wiki](http://ftb.gamepedia.com/Flaxbeard's_Steam_Power).
-* A changelog can be found also on the [FTB Wiki](http://ftb.gamepedia.com/Flaxbeard's_Steam_Power/Changelog)
-* Downloads can be found on [CurseForge](http://minecraft.curseforge.com/mc-mods/224867-flaxbeards-steam-power/)
+<!-- Enable platform badges once this fork has its own project pages. -->
 
-## Contact
-You can contact the team usually within hours here on GitHub through issues. If that's not your style, you can also contact tue Esteemed Innovation team on IRC at #TheSteamTank on EsperNet.
+## Features
+
+* Melt metals in crucibles, mix alloys and pour ingots, nuggets and plates into molds.
+* Make brass and gilded iron equipment.
+* Build boilers, steam networks and machinery.
+* Upgrade steam-powered tools and exosuits.
+* Customize casting recipes through MineTweaker.
+
+## Dependencies
+
+Install on both client and server, with Forge 10.13.4.1614. No other mods are required.
+
+Integrations with other mods, including Tinkers' Construct, are optional.
+
+## Building
+
+```sh
+./gradlew build
+```
+
+The build uses the GTNH toolchain and produces Java 8-compatible jars. Versions come from Git tags; use `VERSION=0.29.5-dev ./gradlew build` to select a local build version.
+
+## Credits
+
+* Flaxbeard and the [Esteemed Innovation team](https://github.com/Esteemed-Innovation/Esteemed-Innovation/tree/1.7) for the original mod.
+* [H-QueerCoded](https://github.com/H-QueerCoded/Flaxbeards-Steam-Power-1.7.10-Patched) and [mist475](https://github.com/mist475/Flaxbeards-Steam-Power-1.7.10-Patched) for the patched 1.7.10 forks.
+* The [upstream resources project](https://github.com/Esteemed-Innovation/Flaxbeards-Steam-Power-Resources/tree/852d1806f6d7d1a866f0b837dabc763fff6ba5d1) for the textures, sounds and translations, imported from that pinned revision.
+* The Forge and MCP teams.
+* The [GT:NH buildscript](https://github.com/GTNewHorizons/ExampleMod1.7.10).
+
+## License
+
+[LGPLv3](LICENSE), following the original 1.7.10 branch. Third-party notices are retained in [licenses](licenses).

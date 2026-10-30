@@ -53,7 +53,11 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import java.util.ArrayList;
 
-@Mod(modid = "Steamcraft", name = "Flaxbeard's Steam Power", version = Config.VERSION)
+@Mod(modid = "Steamcraft", name = "Flaxbeard's Steam Power", version = Config.VERSION,
+        acceptedMinecraftVersions = "[1.7.10]",
+        customProperties = {
+                @Mod.CustomProperty(k = "license", v = "LGPLv3"),
+                @Mod.CustomProperty(k = "issueTrackerUrl", v = "https://github.com/AngelicIndustries/Flaxbeards-Steam-Power/issues") })
 public class Steamcraft {
     @Instance("Steamcraft")
     public static Steamcraft instance;

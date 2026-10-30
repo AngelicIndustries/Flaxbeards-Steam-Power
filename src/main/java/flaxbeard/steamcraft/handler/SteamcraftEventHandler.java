@@ -1,5 +1,6 @@
 package flaxbeard.steamcraft.handler;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.FMLLog;
 import cpw.mods.fml.common.eventhandler.Event;
 import cpw.mods.fml.common.eventhandler.EventPriority;
@@ -490,13 +491,16 @@ public class SteamcraftEventHandler {
             buyingListField.setAccessible(true);
         }
 
-        try {
-            merchantField = getField("field_147037_w", "field_147037_w", GuiMerchant.class);
-            if (merchantField != null) {
-                merchantField.setAccessible(true);
-            }
-        } catch (NoClassDefFoundError ignore) {
-            FMLLog.warning("[FSP] GuiMerchant class not found. You are probably a server.");
+        if (FMLCommonHandler.instance().getSide().isClient()) {
+            initializeMerchantField();
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static void initializeMerchantField() {
+        merchantField = getField("field_147037_w", "field_147037_w", GuiMerchant.class);
+        if (merchantField != null) {
+            merchantField.setAccessible(true);
         }
     }
 
