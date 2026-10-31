@@ -92,4 +92,61 @@ public class FlashBoilerStorageTest {
         NBTTagCompound tag=save(0); Flash loaded=new Flash();loaded.setWorldObj(world);loaded.readFromNBT(tag);boilers[0]=loaded;
         breakMember(0);assertEquals(37,count("stored"));
     }
+    private void prepareReassembly() {
+        boilers[0].destroyMultiblock();
+        for(TileEntityFlashBoiler boiler:boilers)boiler.myTank.setFluid(null);
+    }
+    private void form() { boilers[7].checkMultiblock(false,3); }
+    private int storedWater() { int sum=0;for(TileEntityFlashBoiler b:boilers)sum+=b.myTank.getFluidAmount();return sum; }
+    @Test public void rebuildingMovesFormerPrimaryResourcesToTheNewPrimary() {
+        prepareReassembly();localContents(1,named(20,"fuel"));
+        boilers[1].myTank.setFluid(new net.minecraftforge.fluids.FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER,70000));
+        boilers[1].furnaceBurnTime=100000;boilers[1].currentItemBurnTime=120000;boilers[1].heat=800;
+        form();
+        assertEquals(70000,boilers[0].myTank.getFluidAmount());assertEquals(70000,storedWater());
+        assertEquals(20,boilers[0].getStackInSlot(0).stackSize);assertEquals("fuel",boilers[0].getStackInSlot(0).getDisplayName());
+        assertEquals(100000,boilers[0].furnaceBurnTime);assertEquals(120000,boilers[0].currentItemBurnTime);assertEquals(800,boilers[0].heat);
+        assertEquals(0,boilers[1].furnaceBurnTime);assertEquals(0,boilers[1].heat);assertEquals(0,save(1).getTagList("Items",10).tagCount());
+    }
+    @Test public void rebuildingSpillsOnlyWaterBeyondEightyBuckets() {
+        prepareReassembly();
+        boilers[0].myTank.setFluid(new net.minecraftforge.fluids.FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER,50000));
+        boilers[1].myTank.setFluid(new net.minecraftforge.fluids.FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER,70000));
+        form();assertEquals(80000,boilers[0].myTank.getFluidAmount());assertEquals(80000,storedWater());
+        boilers[0].destroyMultiblock();form();assertEquals(80000,storedWater());
+    }
+    @Test public void conflictingAndExcessItemsDropWithTheirTagsInsteadOfDisappearing() {
+        prepareReassembly();localContents(0,named(63,"same"));localContents(1,named(4,"same"));localContents(2,named(5,"other"));
+        // Simulate a stacked water-input legacy save; the active water slot can process only one item.
+        metadata[0]=1;boilers[0].setInventorySlotContents(1,named(2,"water"));metadata[0]=0;boilers[0].updateContainingBlockInfo();
+        form();
+        verify(world,atLeastOnce()).spawnEntityInWorld(argThat(entity -> entity instanceof EntityItem && entity.posY >= 130));
+        assertEquals(64,boilers[0].getStackInSlot(0).stackSize);assertEquals(1,boilers[0].getStackInSlot(1).stackSize);
+        assertEquals(3,count("same"));assertEquals(5,count("other"));assertEquals(1,count("water"));
+        boilers[0].destroyMultiblock();form();assertEquals(3,count("same"));assertEquals(5,count("other"));assertEquals(1,count("water"));
+    }
+    @Test public void mergedResourcesSurviveSavingBothOldAndNewOwners() {
+        prepareReassembly();localContents(1,named(20,"fuel"));boilers[1].furnaceBurnTime=700;
+        boilers[1].myTank.setFluid(new net.minecraftforge.fluids.FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER,76543));form();
+        for(int i=0;i<2;i++){NBTTagCompound tag=save(i);Flash loaded=new Flash();loaded.setWorldObj(world);loaded.readFromNBT(tag);boilers[i]=loaded;}
+        assertEquals(76543,boilers[0].myTank.getFluidAmount());assertEquals(700,boilers[0].furnaceBurnTime);
+        assertEquals(20,boilers[0].getStackInSlot(0).stackSize);assertEquals(0,save(1).getTagList("Items",10).tagCount());assertEquals(0,boilers[1].myTank.getFluidAmount());
+    }
+    @Test public void burnTimeOverflowIsRetainedUntilThePrimaryCanUseIt() {
+        prepareReassembly();boilers[0].furnaceBurnTime=Integer.MAX_VALUE-20;boilers[1].furnaceBurnTime=30;form();
+        assertEquals(Integer.MAX_VALUE,boilers[0].furnaceBurnTime);assertEquals(10,boilers[1].furnaceBurnTime);
+        boilers[0].furnaceBurnTime=0;boilers[0].updateEntity();boilers[0].updateEntity();
+        assertEquals(0,boilers[1].furnaceBurnTime);assertEquals(9,boilers[0].furnaceBurnTime);
+    }
+    @Test public void incompleteFormationLeavesResourcesUntouched() {
+        prepareReassembly();localContents(1,named(20,"fuel"));boilers[1].myTank.setFluid(new net.minecraftforge.fluids.FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER,70000));
+        when(world.blockExists(1,128,0)).thenReturn(false);form();
+        assertEquals(0,metadata[0]);assertEquals(70000,boilers[1].myTank.getFluidAmount());assertEquals(0,dropped.size());
+        assertEquals(1,save(1).getTagList("Items",10).tagCount());
+    }
+    @Test public void freshFlashBoilersDoNotCreateFreeWaterWhenCombined() {
+        for(TileEntityFlashBoiler b:boilers)assertEquals(0,b.myTank.getFluidAmount());
+        boilers[0].destroyMultiblock();form();assertEquals(0,storedWater());
+    }
+
 }

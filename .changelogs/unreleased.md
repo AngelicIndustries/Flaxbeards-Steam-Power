@@ -50,3 +50,5 @@
 * Preserve unused burn time stored in secondary flash-boiler blocks until those contents can be recovered.
 * Reject invalid boiler inventory slots, sides and extraction amounts instead of crashing or increasing stored stacks.
 * Keep automated water input to one container at a time and allow hoppers to recover empty bottles and refillable containers after draining.
+* Recover water, stored items and paid fuel when rebuilding a flash boiler with a different primary block; spill water above its 80,000 mB capacity and drop conflicting or excess items with their tags.
+* Start new flash-boiler blocks with empty tanks so rebuilding cannot create water.

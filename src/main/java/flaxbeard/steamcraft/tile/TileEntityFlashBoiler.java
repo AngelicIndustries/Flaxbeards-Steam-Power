@@ -10,6 +10,7 @@ import flaxbeard.steamcraft.misc.FluidHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.ISidedInventory;
@@ -108,6 +109,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     public TileEntityFlashBoiler() {
         super(CAPACITY);
         super.myTank = createWaterTank(80000);
+        myTank.setFluid(null);
         this.setPressureResistance(0.5F);
     }
 
@@ -372,7 +374,73 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
             worldObj.markBlockForUpdate(boiler.xCoord, boiler.yCoord, boiler.zCoord);
         }
         if (isMultiblock) {
+            consolidateStorage(cluster);
             for (TileEntityFlashBoiler boiler : boilers.keySet()) boiler.refresh();
+        }
+    }
+
+    private void consolidateStorage(int[][] cluster) {
+        TileEntityFlashBoiler[] members = new TileEntityFlashBoiler[8];
+        ItemStack[][] inventories = new ItemStack[8][];
+        long water = 0;
+        int combinedHeat = 0;
+        for (int i = 0; i < members.length; i++) {
+            TileEntityFlashBoiler member = getLoadedBoiler(cluster[i][0], cluster[i][1], cluster[i][2]);
+            members[i] = member;
+            inventories[i] = member.furnaceItemStacks;
+            member.furnaceItemStacks = new ItemStack[2];
+            water += Math.max(0, member.myTank.getFluidAmount());
+            member.myTank.setFluid(null);
+            combinedHeat = Math.max(combinedHeat, member.heat);
+            member.heat = 0;
+            member.furnaceCookTime = 0;
+        }
+        TileEntityFlashBoiler primary = members[0];
+        // A rebuilt structure still has one 80000 mB tank. Excess water is spilled.
+        int retainedWater = (int) Math.min(water, primary.myTank.getCapacity());
+        primary.myTank.setFluid(retainedWater > 0 ? new FluidStack(FluidRegistry.WATER, retainedWater) : null);
+        primary.heat = Math.min(1600, combinedHeat);
+        for (int i = 0; i < members.length; i++) {
+            if (i > 0) primary.recoverBurnTime(members[i]);
+            for (int slot = 0; slot < 2; slot++) primary.mergeStoredStack(slot, inventories[i][slot]);
+        }
+        for (TileEntityFlashBoiler member : members) member.markDirty();
+    }
+
+    private void mergeStoredStack(int slot, ItemStack stored) {
+        if (stored == null || stored.stackSize <= 0) return;
+        ItemStack target = furnaceItemStacks[slot];
+        int limit = Math.max(1, Math.min(slot == 1 ? 1 : getInventoryStackLimit(), stored.getMaxStackSize()));
+        if (target == null) {
+            furnaceItemStacks[slot] = stored.splitStack(Math.min(limit, stored.stackSize));
+        } else if (target.isItemEqual(stored) && ItemStack.areItemStackTagsEqual(target, stored)) {
+            int moved = Math.min(stored.stackSize, Math.max(0, limit - target.stackSize));
+            target.stackSize += moved;
+            stored.stackSize -= moved;
+        }
+        // Conflicting items and overflow remain recoverable, including their tags.
+        while (stored.stackSize > 0) {
+            ItemStack drop = stored.splitStack(Math.min(stored.stackSize, Math.max(1, stored.getMaxStackSize())));
+            worldObj.spawnEntityInWorld(new EntityItem(worldObj, xCoord + 0.5, yCoord + 2.25, zCoord + 0.5, drop));
+        }
+    }
+
+    private void recoverBurnTime(TileEntityFlashBoiler source) {
+        int moved = (int) Math.min(Math.max(0L, (long) Integer.MAX_VALUE - furnaceBurnTime), Math.max(0, source.furnaceBurnTime));
+        if (moved == 0) return;
+        furnaceBurnTime += moved;
+        currentItemBurnTime = Math.max(furnaceBurnTime, Math.max(currentItemBurnTime, source.currentItemBurnTime));
+        source.furnaceBurnTime -= moved;
+        if (source.furnaceBurnTime == 0) source.currentItemBurnTime = 0;
+        source.markDirty();
+        markDirty();
+    }
+
+    private void recoverRemainingBurnTime() {
+        int[][] cluster = getClusterCoords(getValidClusterFromMetadata());
+        for (int i = 1; i < cluster.length && furnaceBurnTime < Integer.MAX_VALUE; i++) {
+            TileEntityFlashBoiler source = getLoadedBoiler(cluster[i][0], cluster[i][1], cluster[i][2]);
+            if (source != null) recoverBurnTime(source);
         }
     }
 
@@ -426,6 +494,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
         if (waitOneTick) {
             waitOneTick = false;
         } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
+            if (furnaceBurnTime == 0) recoverRemainingBurnTime();
             fillFromInventoryContainer();
             if (furnaceBurnTime == 0 && canSmelt() && getNetwork() != null) {
                 currentItemBurnTime = furnaceBurnTime = getItemBurnTime(furnaceItemStacks[0]);

@@ -232,8 +232,8 @@ public class BoilerAccountingTest {
             when(world.getTileEntity(0, 0, 0)).thenReturn(primary);
             clearInvocations(world);
             assertEquals(1000, secondary.fill(ForgeDirection.UP, water(1000), true));
-            assertEquals(1001, primary.myTank.getFluidAmount());
-            assertEquals(1, secondary.myTank.getFluidAmount());
+            assertEquals(1000, primary.myTank.getFluidAmount());
+            assertEquals(0, secondary.myTank.getFluidAmount());
             verify(world, atLeastOnce()).markTileEntityChunkModified(0, 0, 0, primary);
             clearInvocations(world);
             secondary.setInventorySlotContents(0, new ItemStack(ITEM));
