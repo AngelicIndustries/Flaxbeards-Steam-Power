@@ -139,8 +139,8 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
 
         ArrayList<ForgeDirection> myDirections = new ArrayList<ForgeDirection>();
         for (ForgeDirection direction : ForgeDirection.values()) {
-            if (this.doesConnect(direction) && worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
-                TileEntity tile = worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
+            if (this.doesConnect(direction) && SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
+                TileEntity tile = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
                 if (tile instanceof ISteamTransporter) {
                     ISteamTransporter target = (ISteamTransporter) tile;
                     if (target.doesConnect(direction.getOpposite())) {
@@ -161,7 +161,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
                 direction = ForgeDirection.getOrientation((direction.ordinal() + 1) % 5);
             }
             if (!worldObj.isRemote) {
-                if (myDirections.size() == 2 && this.getSteamShare() > 0 && i < 10 && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite()))) {
+                if (myDirections.size() == 2 && this.getSteamShare() > 0 && i < 10 && (worldObj.blockExists(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite())))) {
                     this.worldObj.playSoundEffect(this.xCoord + 0.5F, this.yCoord + 0.5F, this.zCoord + 0.5F, "steamcraft:leaking", 2.0F, 0.9F);
                     if (!isLeaking) {
                         ////Steamcraft.log.debug("Block is leaking!");
@@ -178,7 +178,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
                         markDirty();
                     }
                 }
-                while (myDirections.size() == 2 && this.getPressure() > 0 && i < 10 && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite()))) {
+                while (myDirections.size() == 2 && this.getPressure() > 0 && i < 10 && (worldObj.blockExists(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite())))) {
                     if (worldObj.isRemote) {
                     }
                     this.decrSteam(10);
@@ -246,8 +246,8 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
 
     private int canConnectSide(int side) {
         ForgeDirection direction = ForgeDirection.getOrientation(side);
-        if (worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
-            TileEntity tile = worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
+        if (SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
+            TileEntity tile = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
             if (tile instanceof ISteamTransporter) {
                 ISteamTransporter target = (ISteamTransporter) tile;
                 if (target.doesConnect(direction.getOpposite())) {
@@ -337,7 +337,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
             //If does connect on this side, and has adequate sides left
             if (this.doesConnect(ForgeDirection.getOrientation(subHit))) {
                 ForgeDirection direction = ForgeDirection.getOrientation(subHit);
-                TileEntity tile = worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
+                TileEntity tile = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
                 if (tile instanceof TileEntitySteamPipe && ((TileEntitySteamPipe) tile).blacklistedSides.contains(direction.getOpposite().ordinal())) {
                     TileEntitySteamPipe pipe = (TileEntitySteamPipe) tile;
                     pipe.blacklistedSides.remove((Integer) direction.getOpposite().ordinal());
@@ -355,7 +355,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
                     this.blacklistedSides.add(subHit);
                     {
                         ForgeDirection d = ForgeDirection.getOrientation(subHit);
-                        TileEntity te = worldObj.getTileEntity(x + d.offsetX, y + d.offsetY, z + d.offsetZ);
+                        TileEntity te = SteamNetwork.getLoadedTile(worldObj, x + d.offsetX, y + d.offsetY, z + d.offsetZ);
                         if (te != null && te instanceof ISteamTransporter) {
                             ISteamTransporter p = (ISteamTransporter) te;
                             SteamNetwork network = p.getNetwork();
@@ -413,7 +413,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
     private void refreshNeighbors() {
         //log.debug("Refreshing neighbors");
         for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-            TileEntity te = worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
+            TileEntity te = SteamNetwork.getLoadedTile(worldObj, xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
             if (te != null && te instanceof ISteamTransporter) {
                 //log.debug("    Valid");
                 ISteamTransporter trans = (ISteamTransporter) te;

@@ -31,6 +31,59 @@ public class SteamNetwork {
     private Coord4[] transporterCoords;
     private int initializedTicks = 0;
     private HashMap<Coord4, ISteamTransporter> transporters = new HashMap<>();
+    private HashMap<ISteamTransporter, Integer> savedShares;
+
+    public static TileEntity getLoadedTile(World world, int x, int y, int z) {
+        return world.blockExists(x, y, z) ? world.getTileEntity(x, y, z) : null;
+    }
+
+    /** Exact integer shares for saving; the cached allocation preserves rounding remainders. */
+    public synchronized int getSavedSteam(ISteamTransporter trans) {
+        if (savedShares == null) {
+            savedShares = new HashMap<>();
+            long assignedCapacity = 0;
+            int assignedSteam = 0;
+            for (ISteamTransporter member : transporters.values()) {
+                assignedCapacity += member.getCapacity();
+                int cumulative = capacity > 0 ? (int) ((long) steam * assignedCapacity / capacity) : 0;
+                savedShares.put(member, cumulative - assignedSteam);
+                assignedSteam = cumulative;
+            }
+        }
+        Integer share = savedShares.get(trans);
+        return share == null ? trans.getSteam() : share;
+    }
+
+    public synchronized void unloadTransporters(HashSet<ISteamTransporter> departing) {
+        // ChunkEvent.Unload runs before the chunk is written to disk.
+        ArrayList<ISteamTransporter> remaining = new ArrayList<>();
+        for (ISteamTransporter member : transporters.values()) {
+            if (member.getNetwork() == this) {
+                member.updateSteam(getSavedSteam(member));
+                if (!departing.contains(member)) {
+                    remaining.add(member);
+                }
+            }
+        }
+        SteamNetworkRegistry.getInstance().remove(this);
+        for (ISteamTransporter member : transporters.values()) {
+            if (member.getNetwork() == this) {
+                member.setNetwork(null);
+                member.setNetworkName(null);
+            }
+        }
+        transporters.clear();
+        steam = 0;
+        capacity = 0;
+        savedShares = null;
+        // Rejoin only the surviving loaded tiles, separating components across the unloaded chunk.
+        for (ISteamTransporter member : remaining) {
+            TileEntity tile = getLoadedTile(member.getWorld(), member.getCoords().x, member.getCoords().y, member.getCoords().z);
+            if (tile == member && !tile.isInvalid()) {
+                newOrJoin(member);
+            }
+        }
+    }
 
     public SteamNetwork() {
         this.steam = 0;
@@ -105,8 +158,8 @@ public class SteamNetwork {
         HashSet<ISteamTransporter> out = new HashSet<>();
         Coord4 transCoords = trans.getCoords();
         for (ForgeDirection d : trans.getConnectionSides()) {
-            TileEntity te = trans.getWorld().getTileEntity(transCoords.x + d.offsetX, transCoords.y + d.offsetY, transCoords.z + d.offsetZ);
-            if (te != null && te instanceof ISteamTransporter) {
+            TileEntity te = getLoadedTile(trans.getWorld(), transCoords.x + d.offsetX, transCoords.y + d.offsetY, transCoords.z + d.offsetZ);
+            if (te instanceof ISteamTransporter && !te.isInvalid()) {
                 if (te != trans) {
                     boolean isNeighbor = false;
                     ISteamTransporter t = (ISteamTransporter) te;
@@ -191,12 +244,13 @@ public class SteamNetwork {
 
             if (Config.wimpMode) {
                 if (this.getPressure() > 1.09F) {
+                    savedShares = null;
                     this.steam = (int) Math.floor((double) this.capacity * 1.09D);
                 }
             } else {
                 if (this.transporters != null) {
                     if (this.getPressure() > 1.2F) {
-                        for (Coord4 coords : transporters.keySet()) {
+                        for (Coord4 coords : new ArrayList<>(transporters.keySet())) {
                             //////Steamcraft.log.debug("Iterating!");
                             ISteamTransporter trans = transporters.get(coords);
                             if ((trans == null || ((TileEntity) trans).isInvalid())) {
@@ -221,11 +275,13 @@ public class SteamNetwork {
     }
 
     public synchronized void addSteam(int amount) {
+        savedShares = null;
         this.steam += amount;
         this.shouldRefresh();
     }
 
     public synchronized void decrSteam(int amount) {
+        savedShares = null;
         this.steam -= amount;
         if (this.steam < 0) {
             this.steam = 0;
@@ -262,6 +318,7 @@ public class SteamNetwork {
 
     public synchronized void addTransporter(ISteamTransporter trans) {
         if (trans != null && !this.contains(trans)) {
+            savedShares = null;
             this.capacity += trans.getCapacity();
             Coord4 transCoords = trans.getCoords();
             transporters.put(transCoords, trans);
@@ -287,7 +344,7 @@ public class SteamNetwork {
         for (int i = this.transporterCoords.length - 1; i >= 0; i--) {
             Coord4 coords = this.transporterCoords[i];
             int x = coords.x, y = coords.y, z = coords.z;
-            TileEntity te = world.getTileEntity(x, y, z);
+            TileEntity te = getLoadedTile(world, x, y, z);
             if (te instanceof ISteamTransporter) {
                 this.transporters.put(this.transporterCoords[i], (ISteamTransporter) te);
             }
@@ -296,6 +353,7 @@ public class SteamNetwork {
     }
 
     public synchronized int split(ISteamTransporter split, boolean removeCapacity) {
+        savedShares = null;
         //////Steamcraft.log.debug("Splitting network: "+ this.name);
         int steamRemoved = 0;
         if (removeCapacity && this.steam >= split.getCapacity() * this.getPressure()) {
@@ -412,8 +470,8 @@ public class SteamNetwork {
         Coord4 coords = trans.getCoords();
         int x = coords.x, y = coords.y, z = coords.z;
         for (ForgeDirection dir : trans.getConnectionSides()) {
-            TileEntity te = trans.getWorld().getTileEntity(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ);
-            if (te != null && te instanceof ISteamTransporter) {
+            TileEntity te = getLoadedTile(trans.getWorld(), x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ);
+            if (te instanceof ISteamTransporter && !te.isInvalid()) {
                 ISteamTransporter neighbor = (ISteamTransporter) te;
                 out.add(neighbor);
             }
@@ -422,11 +480,24 @@ public class SteamNetwork {
     }
 
     public void join(SteamNetwork other) {
-        for (ISteamTransporter trans : other.transporters.values()) {
-            this.addTransporter(trans);
+        if (other == this) {
+            return;
         }
-        //this.steam += other.getSteam();
         SteamNetworkRegistry.getInstance().remove(other);
+        for (ISteamTransporter trans : other.transporters.values()) {
+            transporters.put(trans.getCoords(), trans);
+            trans.setNetwork(this);
+            trans.setNetworkName(name);
+        }
+        capacity += other.capacity;
+        steam += other.steam;
+        savedShares = null;
+        other.transporters.clear();
+        other.capacity = 0;
+        other.steam = 0;
+        other.savedShares = null;
+        shouldRefresh();
+        markDirty();
     }
 
     public int getDimension() {
@@ -451,6 +522,7 @@ public class SteamNetwork {
     }
 
     public synchronized void refresh() {
+        savedShares = null;
         float press = this.getPressure();
         int targetCapacity = 0;
         //log.debug("Refreshing " + this.name + "; size: "+this.transporters.size());
@@ -459,11 +531,12 @@ public class SteamNetwork {
             SteamNetworkRegistry.getInstance().remove(this);
             return;
         }
+        World world = getWorld();
         try {
             HashMap<Coord4, ISteamTransporter> temp = (HashMap<Coord4, ISteamTransporter>) this.transporters.clone();
             for (Coord4 c : temp.keySet()) {
-                TileEntity te = c.getTileEntity(this.getWorld());
-                if (te == null || !(te instanceof ISteamTransporter)) {
+                TileEntity te = getLoadedTile(world, c.x, c.y, c.z);
+                if (!(te instanceof ISteamTransporter) || te.isInvalid()) {
                     //log.debug("illegal transporter");
                     this.transporters.remove(c);
                 } else {

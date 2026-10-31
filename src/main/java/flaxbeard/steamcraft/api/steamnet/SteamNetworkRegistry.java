@@ -8,12 +8,11 @@ import flaxbeard.steamcraft.api.ISteamTransporter;
 import flaxbeard.steamcraft.api.steamnet.data.SteamNetworkData;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.IChunkProvider;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.world.ChunkEvent;
+import net.minecraftforge.event.world.WorldEvent;
 
-import java.util.ConcurrentModificationException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.UUID;
@@ -60,19 +59,15 @@ public class SteamNetworkRegistry {
 
     @SubscribeEvent
     public void onTick(TickEvent.ServerTickEvent e) {
-        //////Steamcraft.log.debug("Tick");
-        if (networks.values().size() > 0) {
-            try {
-                for (HashMap<String, SteamNetwork> dimension : networks.values()) {
-                    for (SteamNetwork net : dimension.values()) {
-                        if (!net.tick()) {
-                            dimension.remove(net.getName());
-                        }
-                    }
+        if (e.phase != TickEvent.Phase.END) {
+            return;
+        }
+        // Refreshes and explosions can replace networks while this tick is in progress.
+        for (HashMap<String, SteamNetwork> dimension : new ArrayList<>(networks.values())) {
+            for (SteamNetwork net : new ArrayList<>(dimension.values())) {
+                if (dimension.get(net.getName()) == net && !net.tick()) {
+                    dimension.remove(net.getName());
                 }
-            } catch (ConcurrentModificationException ignore) {
-                ////Steamcraft.log.debug("FSP: ConcurrentModificationException in network tick");
-                //ex.printStackTrace();
             }
         }
     }
@@ -136,48 +131,38 @@ public class SteamNetworkRegistry {
         initialized.add(dimensionId);
     }
 
+    public void clear() {
+        networks.clear();
+        initialized.clear();
+    }
+
     public static class NetworkLoader {
         @SubscribeEvent
-        public void onChunkLoad(ChunkEvent.Load event) {
-            if (event.getChunk() != null && !event.world.isRemote) {
-                int x = event.getChunk().xPosition;
-                int z = event.getChunk().zPosition;
-
-                IChunkProvider cProvider = event.getChunk().worldObj.getChunkProvider();
-                Chunk[] neighbors = new Chunk[5];
-
-                neighbors[0] = event.getChunk();
-
-                if (cProvider.chunkExists(x + 1, z)) neighbors[1] = cProvider.provideChunk(x + 1, z);
-                if (cProvider.chunkExists(x - 1, z)) neighbors[2] = cProvider.provideChunk(x - 1, z);
-                if (cProvider.chunkExists(x, z + 1)) neighbors[3] = cProvider.provideChunk(x, z + 1);
-                if (cProvider.chunkExists(x, z - 1)) neighbors[4] = cProvider.provideChunk(x, z - 1);
-
-                for (Chunk c : neighbors) {
-                    refreshChunk(c);
+        public void onChunkUnload(ChunkEvent.Unload event) {
+            if (event.world.isRemote) {
+                return;
+            }
+            HashMap<SteamNetwork, HashSet<ISteamTransporter>> departing = new HashMap<>();
+            for (Object tile : event.getChunk().chunkTileEntityMap.values()) {
+                if (tile instanceof ISteamTransporter) {
+                    ISteamTransporter trans = (ISteamTransporter) tile;
+                    if (trans.getNetwork() != null) {
+                        departing.computeIfAbsent(trans.getNetwork(), key -> new HashSet<>()).add(trans);
+                    }
                 }
+            }
+            for (SteamNetwork network : departing.keySet()) {
+                network.unloadTransporters(departing.get(network));
             }
         }
 
-        public synchronized void refreshChunk(Chunk c) {
-//			try {
-//				if(c != null)
-//				{
-//					Map copy = (Map)((HashMap)c.chunkTileEntityMap).clone();
-//
-//					for(Iterator iter = copy.values().iterator(); iter.hasNext();)
-//					{
-//						Object obj = iter.next();
-//
-//						if(obj instanceof ISteamTransporter)
-//						{
-//							((ISteamTransporter)obj).refresh();
-//						}
-//					}
-//				}
-//			} catch(Exception e) {
-//				e.printStackTrace();
-//			}
+        @SubscribeEvent
+        public void onWorldUnload(WorldEvent.Unload event) {
+            if (!event.world.isRemote) {
+                int dimension = event.world.provider.dimensionId;
+                INSTANCE.networks.remove(dimension);
+                INSTANCE.initialized.remove(dimension);
+            }
         }
     }
 }

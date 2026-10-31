@@ -21,3 +21,7 @@
 * Keep hammer result batches intact during right-click, drop-key and shift-click pickup, including nearly full inventories.
 * Use current repair-material counts when multiple players share a hammer, and reset work when its recipe or requested name changes.
 * Prevent sided automation from extracting hammer result previews, and invalidate previews when inputs change outside the GUI.
+* Detach unloaded chunks from steam networks and separate the remaining connected sections, preserving steam when chunks return.
+* Save current steam shares without losing integer remainders, and merge live network totals instead of stale tile snapshots.
+* Avoid loading neighboring chunks during steam-network, pipe, valve and gauge checks.
+* Tick steam networks once per server tick, handle network removal safely, and clear network references when worlds unload or the server stops.

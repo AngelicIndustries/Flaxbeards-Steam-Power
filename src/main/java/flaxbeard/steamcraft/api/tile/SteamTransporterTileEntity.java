@@ -100,7 +100,7 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
     public void writeToNBT(NBTTagCompound compound) {
         super.writeToNBT(compound);
         //log.debug("writing STTE to NBT with steam: "+this.steam);
-        compound.setInteger("steam", this.steam);
+        compound.setInteger("steam", network != null && network.contains(this) ? network.getSavedSteam(this) : steam);
     }
 
     public int getCapacity() {
@@ -117,7 +117,7 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
             this.refresh();
         }
         if (!worldObj.isRemote) {
-            if (this.steam != this.getSteamShare()) {
+            if (network != null && this.steam != this.getSteamShare()) {
                 this.steam = this.getSteamShare();
                 markDirty();
             }
@@ -230,6 +230,7 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
 
     public void setNetwork(SteamNetwork network) {
         this.network = network;
+        isInitialized = network != null;
     }
 
     @Override
@@ -247,7 +248,7 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
 
     public boolean hasGauge() {
         for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-            if (this.acceptsGauge(dir)) {
+            if (this.acceptsGauge(dir) && worldObj.blockExists(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ)) {
                 Block block = worldObj.getBlock(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
                 if (block instanceof BlockSteamGauge || block instanceof BlockRuptureDisc)
                     return true;
@@ -293,7 +294,12 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
 
     @Override
     public void updateSteam(int amount) {
-        this.steam = amount;
+        if (this.steam != amount) {
+            this.steam = amount;
+            if (worldObj != null && !worldObj.isRemote && worldObj.blockExists(xCoord, yCoord, zCoord)) {
+                markDirty();
+            }
+        }
     }
 
     protected void shouldJoin() {

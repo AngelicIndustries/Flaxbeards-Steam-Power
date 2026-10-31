@@ -105,6 +105,7 @@ public class Steamcraft {
     @EventHandler
     public void serverStopped(FMLServerStoppedEvent event) {
         ServerPacketDispatcher.INSTANCE.clear();
+        flaxbeard.steamcraft.api.steamnet.SteamNetworkRegistry.getInstance().clear();
     }
 
     @EventHandler

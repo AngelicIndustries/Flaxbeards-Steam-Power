@@ -123,8 +123,8 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
                 }
                 ArrayList<ForgeDirection> myDirections = new ArrayList<>();
                 for (ForgeDirection direction : directions) {
-                    if (worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
-                        TileEntity tile = worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
+                    if (SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) != null) {
+                        TileEntity tile = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
                         if (tile instanceof ISteamTransporter) {
                             ISteamTransporter target = (ISteamTransporter) tile;
                             if (target.doesConnect(direction.getOpposite())) {
@@ -141,7 +141,7 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
                 i = 0;
                 if (myDirections.size() > 0) {
                     ForgeDirection direction = myDirections.get(0).getOpposite();
-                    while (myDirections.size() == 2 && open && i < 10 && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite()))) {
+                    while (myDirections.size() == 2 && open && i < 10 && (worldObj.blockExists(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite())))) {
                         //this.decrSteam(1);
                         this.worldObj.spawnParticle("smoke", xCoord + 0.5F, yCoord + 0.5F, zCoord + 0.5F, direction.offsetX * 0.1F, direction.offsetY * 0.1F, direction.offsetZ * 0.1F);
                         i++;
@@ -184,7 +184,7 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
 
             ArrayList<ForgeDirection> myDirections = new ArrayList<>();
             for (ForgeDirection direction : directions) {
-            	final TileEntity tile = worldObj.getTileEntity(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
+                final TileEntity tile = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ);
                 if (tile != null) {
                     if (tile instanceof ISteamTransporter) {
                         final ISteamTransporter target = (ISteamTransporter) tile;
@@ -206,7 +206,7 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
                     direction = ForgeDirection.getOrientation((direction.flag + 1) % 5);
                 }
 
-                if (myDirections.size() == 2 && open && this.getNetwork() != null && this.getNetwork().getSteam() > 0 && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite()))) {
+                if (myDirections.size() == 2 && open && this.getNetwork() != null && this.getNetwork().getSteam() > 0 && (worldObj.blockExists(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) && (worldObj.isAirBlock(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ) || !worldObj.isSideSolid(xCoord + direction.offsetX, yCoord + direction.offsetY, zCoord + direction.offsetZ, direction.getOpposite())))) {
                     ////Steamcraft.log.debug("open and should be leaking");
                     if (!isLeaking) {
                         isLeaking = true;
