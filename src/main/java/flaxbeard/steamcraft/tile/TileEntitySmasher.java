@@ -71,12 +71,29 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
 
         this.smooshingBlock = Block.getBlockById(access.getInteger("block"));
         this.smooshingMeta = access.getInteger("smooshingMeta");
-        NBTTagList nbttaglist = (NBTTagList) access.getTag("Items");
+        NBTTagList nbttaglist = access.getTagList("Items", 10);
         this.smooshedStack = new ArrayList<ItemStack>();
 
         for (int i = 0; i < nbttaglist.tagCount(); ++i) {
             NBTTagCompound nbttagcompound1 = nbttaglist.getCompoundTagAt(i);
-            this.smooshedStack.add(ItemStack.loadItemStackFromNBT(nbttagcompound1));
+            ItemStack stack = ItemStack.loadItemStackFromNBT(nbttagcompound1);
+            if (stack != null && stack.getItem() != null && stack.stackSize > 0) {
+                this.smooshedStack.add(stack);
+            }
+        }
+        if (access.getInteger("cycleState") >= 1) {
+            isActive = access.getBoolean("isActive");
+            isBreaking = access.getBoolean("isBreaking");
+            shouldStop = access.getBoolean("shouldStop");
+            running = access.getBoolean("running");
+            smashNextRound = access.getBoolean("smashNextRound");
+        } else {
+            // Older saves only recorded animation counters after paying for the cycle.
+            isActive = spinup > 0 || extendedTicks > 0 || extendedLength > 0;
+            isBreaking = spinup > 0;
+            running = isActive;
+            shouldStop = false;
+            smashNextRound = false;
         }
     }
 
@@ -85,6 +102,12 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
         super.writeToNBT(access);
         access.setBoolean("noSmashDrops", noSmashDrops);
         access.setBoolean("hasBeenSet", hasBeenSet);
+        access.setInteger("cycleState", 1);
+        access.setBoolean("isActive", isActive);
+        access.setBoolean("isBreaking", isBreaking);
+        access.setBoolean("shouldStop", shouldStop);
+        access.setBoolean("running", running);
+        access.setBoolean("smashNextRound", smashNextRound);
         access.setInteger("spinup", spinup);
         access.setFloat("extendedLength", extendedLength);
         access.setInteger("extendedTicks", extendedTicks);
@@ -93,9 +116,10 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
         NBTTagList nbttaglist = new NBTTagList();
 
         if (this.smooshedStack != null) {
-            for (int i = 0; i < this.smooshedStack.size(); ++i) {
+            for (ItemStack stack : this.smooshedStack) {
+                if (stack == null || stack.getItem() == null || stack.stackSize <= 0) continue;
                 NBTTagCompound nbttagcompound1 = new NBTTagCompound();
-                this.smooshedStack.get(i).writeToNBT(nbttagcompound1);
+                stack.writeToNBT(nbttagcompound1);
                 nbttaglist.appendTag(nbttagcompound1);
             }
         }
@@ -254,6 +278,7 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
                 this.shouldStop = false;
                 this.isBreaking = false;
                 this.running = false;
+                markDirty();
                 worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
                 return;
             }
@@ -261,6 +286,7 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
 
                 ////Steamcraft.log.debug("Smash next round!");
                 this.smashNextRound = true;
+                markDirty();
                 return;
                 ////Steamcraft.log.debug("I should never get here");
 
@@ -272,6 +298,7 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
                 ////Steamcraft.log.debug("Smash this round!");
                 smashThisRound = true;
                 this.smashNextRound = false;
+                markDirty();
             }
             if (smashThisRound) {
 
@@ -287,6 +314,7 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
 
             //handle processing
             if (this.isActive) {
+                markDirty();
                 // if we haven't spun up yet, do it.
                 if (this.isBreaking) {
                     if (!this.hasSomethingToSmash() && this.spinup < 40 && this.getBlockMetadata() % 2 == 0) {
@@ -294,6 +322,7 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
                         int[] tc = getTarget(2);
                         TileEntitySmasher partner = (TileEntitySmasher) worldObj.getTileEntity(tc[0], yCoord, tc[1]);
                         partner.shouldStop = true;
+                        partner.markDirty();
                         return;
                     }
                     if (this.spinup < 41) {

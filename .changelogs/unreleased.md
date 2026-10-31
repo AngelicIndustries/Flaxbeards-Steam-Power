@@ -63,3 +63,5 @@
 * Reject empty steaming inputs and oversized results, and save direct smelting changes without modifying recipe templates.
 * Add SKCraft-inspired controls for the Rock Smasher bonus multiplier and optional Thumper drops above the machine, preserving the existing defaults and keeping smashing separate.
 * Split multiplied Smasher output into legal tagged stacks, clear completed drops in pass-through mode, and validate the bonus chance and multiplier settings.
+* Resume paid Rock Smasher cycles after saving or restarting, retaining pending drops and avoiding a second steam charge.
+* Recover active Smasher cycles from older animation counters, tolerate missing item lists, and skip invalid saved drop entries.
