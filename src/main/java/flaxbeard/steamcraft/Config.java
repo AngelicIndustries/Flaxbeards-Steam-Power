@@ -77,7 +77,9 @@ public class Config {
     public static int mortarRadius;
     public static boolean expensiveMusketRecipes;
     public static int chance;
+    public static int oreMultiplier = 2;
     public static boolean dropItem;
+    public static boolean dropItemNearThumper;
     public static int duplicateLogs;
     public static int exoConsumption;
     public static int basicTankCapacity;
@@ -302,9 +304,14 @@ public class Config {
 
         // MACHINES
         mortarRadius = config.get("Machines", "Item Mortar accuracy (radius in blocks)", 2).getInt();
-        chance = config.get("Machines", "Chance of double drops from Rock Smasher (1 in X)", 4).getInt();
+        chance = config.getInt("Chance of double drops from Rock Smasher (1 in X)", "Machines", 4, 1,
+            Integer.MAX_VALUE, "Chance of applying the Rock Smasher bonus multiplier (1 in X).");
+        oreMultiplier = config.getInt("Ore multiplier for the Rock Smasher (if multiplying)", "Machines", 2, 1, 64,
+            "Output multiplier when the bonus roll succeeds. Set to 1 to disable bonus output.");
         duplicateLogs = config.get("Machines", "Chance of duplicate drops from Buzzsaw (1 in X)", 6).getInt();
         dropItem = config.get("Machines", "Thumper drops items (may lag servers)", true).getBoolean(true);
+        dropItemNearThumper = config.get("Machines", "Drop items (if enabled) from the Thumper near the Thumper", false,
+            "Drop mined items above the Thumper instead of underground. Requires Thumper drops to be enabled.").getBoolean(false);
 
         // STEAM SYSTEM
         config.addCustomCategoryComment("SteamSystem", "Disabling any piece marked crucial disables pretty much the whole mod.");

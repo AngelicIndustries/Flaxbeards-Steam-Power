@@ -61,3 +61,5 @@
 * Remove duplicate heater registration and exclude the heating face and unknown direction from heater steam connections.
 * Use the same steaming recipe and output-capacity checks in heaters and furnaces, prefer exact recipes over wildcards, and prevent chained conversions or merging incompatible item tags.
 * Reject empty steaming inputs and oversized results, and save direct smelting changes without modifying recipe templates.
+* Add SKCraft-inspired controls for the Rock Smasher bonus multiplier and optional Thumper drops above the machine, preserving the existing defaults and keeping smashing separate.
+* Split multiplied Smasher output into legal tagged stacks, clear completed drops in pass-through mode, and validate the bonus chance and multiplier settings.

@@ -17,6 +17,9 @@ Metal casting, steam machinery and upgradeable equipment for Minecraft 1.7.10.
 * Build boilers, steam networks and machinery.
 * Upgrade steam-powered tools and exosuits.
 * Customize casting recipes through MineTweaker.
+* Configure the Rock Smasher bonus yield and optionally collect Thumper drops above the machine.
+
+The machine settings are in `config/FlaxbeardsSteamPower.cfg`, under `Machines`. The Rock Smasher bonus multiplier defaults to 2 (range 1–64), with the existing 1-in-4 bonus chance. A multiplier of 1 disables the bonus. Thumper drops stay underground by default; the optional nearby-drop setting moves them above the machine and still requires item drops to be enabled.
 
 ## Dependencies
 
@@ -37,6 +40,7 @@ The build uses the GTNH toolchain and produces Java 8-compatible jars. Versions 
 * Flaxbeard and the [Esteemed Innovation team](https://github.com/Esteemed-Innovation/Esteemed-Innovation/tree/1.7) for the original mod.
 * [H-QueerCoded](https://github.com/H-QueerCoded/Flaxbeards-Steam-Power-1.7.10-Patched) and [mist475](https://github.com/mist475/Flaxbeards-Steam-Power-1.7.10-Patched) for the patched 1.7.10 forks.
 * The [upstream resources project](https://github.com/Esteemed-Innovation/Flaxbeards-Steam-Power-Resources/tree/852d1806f6d7d1a866f0b837dabc763fff6ba5d1) for the textures, sounds and translations, imported from that pinned revision.
+* [SKCraft](https://github.com/SKCraft/Flaxbeards-Steam-Power) for the Rock Smasher multiplier and Thumper drop-location options, adapted for this fork.
 * The Forge and MCP teams.
 * The [GT:NH buildscript](https://github.com/GTNewHorizons/ExampleMod1.7.10).
 

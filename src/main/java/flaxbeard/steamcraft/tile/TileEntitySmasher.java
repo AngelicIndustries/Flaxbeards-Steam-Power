@@ -430,25 +430,39 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
     }
 
     private void spawnItems(int x, int y, int z) {
-        if (smooshedStack != null) {
-            for (ItemStack stack : smooshedStack) {
-            	ItemStack output = REGISTRY.getOutput(stack);
-                
-                if(output != null && !this.noSmashDrops) {
-                	if (worldObj.rand.nextInt(Config.chance) == 0) {
-                    	output.stackSize *= 2; //doubling
-                    }
-                	
-                	EntityItem entityItem = new EntityItem(this.worldObj, x + 0.5F, y + 0.1F, z + 0.5F, output);
-                    this.worldObj.spawnEntityInWorld(entityItem);
-                    this.smooshedStack = null;
-                } else { //Drops itself
-                	output = stack;
-                    EntityItem entityItem = new EntityItem(this.worldObj, x + 0.5F, y + 0.1F, z + 0.5F, output);
-                    this.worldObj.spawnEntityInWorld(entityItem);
+        if (worldObj.isRemote || smooshedStack == null) return;
+        ArrayList<ItemStack> pending = smooshedStack;
+        smooshedStack = null;
+        markDirty();
+        for (ItemStack stack : pending) {
+            if (stack == null || stack.getItem() == null || stack.stackSize <= 0) continue;
+            ItemStack output = noSmashDrops ? null : REGISTRY.getOutput(stack);
+            int multiplier = 1;
+            if (output != null) {
+                if (worldObj.rand.nextInt(Math.max(1, Config.chance)) == 0) {
+                    multiplier = Config.oreMultiplier;
                 }
+            } else {
+                output = stack;
+            }
+            for (ItemStack drop : splitOutput(output, multiplier)) {
+                worldObj.spawnEntityInWorld(new EntityItem(worldObj, x + 0.5, y + 0.1, z + 0.5, drop));
             }
         }
+    }
+
+    static List<ItemStack> splitOutput(ItemStack output, int multiplier) {
+        List<ItemStack> drops = new ArrayList<>();
+        if (output == null || output.getItem() == null || output.stackSize <= 0) return drops;
+        long remaining = (long) output.stackSize * Math.max(1, Math.min(64, multiplier));
+        int stackLimit = Math.max(1, Math.min(64, output.getMaxStackSize()));
+        while (remaining > 0) {
+            ItemStack drop = output.copy();
+            drop.stackSize = (int) Math.min(stackLimit, remaining);
+            drops.add(drop);
+            remaining -= drop.stackSize;
+        }
+        return drops;
     }
 
     private boolean hasSomethingToSmash() {

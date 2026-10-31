@@ -7,6 +7,8 @@ import flaxbeard.steamcraft.api.ISteamTransporter;
 import flaxbeard.steamcraft.api.tile.SteamTransporterTileEntity;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
@@ -14,8 +16,10 @@ import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.ChunkCoordinates;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.event.ForgeEventFactory;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 
 public class TileEntityThumper extends SteamTransporterTileEntity implements ISteamTransporter {
 
@@ -127,9 +131,8 @@ public class TileEntityThumper extends SteamTransporterTileEntity implements ISt
                         }
                         if (hasTarget) {
                             Block block = worldObj.getBlock(target.posX, target.posY, target.posZ);
-                            if (Config.dropItem) {
-                                block.dropBlockAsItem(worldObj, target.posX, target.posY, target.posZ, this.worldObj.getBlockMetadata(target.posX, target.posY, target.posZ), 0);
-                            }
+                            dropMinedBlock(block, target.posX, target.posY, target.posZ,
+                                worldObj.getBlockMetadata(target.posX, target.posY, target.posZ));
                             worldObj.setBlockToAir(target.posX, target.posY, target.posZ);
                         } else {
                         }
@@ -141,6 +144,28 @@ public class TileEntityThumper extends SteamTransporterTileEntity implements ISt
 
     }
 
+
+    void dropMinedBlock(Block block, int x, int y, int z, int metadata) {
+        if (worldObj.isRemote || !Config.dropItem || worldObj.restoringBlockSnapshots) return;
+        if (!Config.dropItemNearThumper) {
+            block.dropBlockAsItem(worldObj, x, y, z, metadata, 0);
+            return;
+        }
+        // Recipes and harvest events need the mined position, not the item spawn position.
+        ArrayList<ItemStack> drops = block.getDrops(worldObj, x, y, z, metadata, 0);
+        float chance = ForgeEventFactory.fireBlockHarvesting(drops, worldObj, block, x, y, z,
+            metadata, 0, 1.0F, false, null);
+        if (!worldObj.getGameRules().getGameRuleBooleanValue("doTileDrops")) return;
+        for (ItemStack drop : drops) {
+            if (drop == null || drop.getItem() == null || drop.stackSize <= 0 || worldObj.rand.nextFloat() > chance) continue;
+            double dx = xCoord + worldObj.rand.nextFloat() * 0.7F + 0.15F;
+            double dy = yCoord + 4 + worldObj.rand.nextFloat() * 0.7F + 0.15F;
+            double dz = zCoord + worldObj.rand.nextFloat() * 0.7F + 0.15F;
+            EntityItem item = new EntityItem(worldObj, dx, dy, dz, drop);
+            item.delayBeforeCanPickup = 10;
+            worldObj.spawnEntityInWorld(item);
+        }
+    }
 
     @SideOnly(Side.CLIENT)
     public AxisAlignedBB getRenderBoundingBox() {
