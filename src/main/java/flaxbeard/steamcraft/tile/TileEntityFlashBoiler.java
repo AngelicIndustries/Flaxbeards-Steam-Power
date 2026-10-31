@@ -19,10 +19,13 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.*;
 
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHandler, ISidedInventory, ISteamTransporter {
 
@@ -235,26 +238,9 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     public void checkMultiblock(boolean isBreaking, int frontSide) {
-        ////Steamcraft.log.debug(frontSideIn);
-        int x = xCoord, y = yCoord, z = zCoord;
-
-        ////Steamcraft.log.debug("Checking multiblock; frontSide: "+this.frontSide);
-
-        boolean isMultiblock = false;
-        boolean isTooManyBlocks = false;
-
-
-        if (!worldObj.isRemote) {
-            if (!isBreaking) {
-                ////Steamcraft.log.debug(this.frontSide);
-                int[] validClusters = getValidClusters();
-                ////Steamcraft.log.debug("valid configs found: " +validClusters.length);
-
-                if (validClusters.length == 1) {
-                    updateMultiblock(validClusters[0], true, frontSide);
-                }
-            }
-        }
+        if (worldObj == null || worldObj.isRemote || isBreaking || isInvalid()) return;
+        int[] validClusters = getValidClusters();
+        if (validClusters.length == 1) updateMultiblock(validClusters[0], true, frontSide);
     }
 
     public void destroyMultiblock() {
@@ -294,22 +280,36 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
         return validCluster;
     }
 
+    private TileEntityFlashBoiler getLoadedBoiler(int x, int y, int z) {
+        if (!worldObj.blockExists(x, y, z) || worldObj.getBlock(x, y, z) != SteamcraftBlocks.flashBoiler) return null;
+        TileEntity tile = worldObj.getTileEntity(x, y, z);
+        return tile instanceof TileEntityFlashBoiler && !tile.isInvalid() ? (TileEntityFlashBoiler) tile : null;
+    }
+
     private int checkCluster(int[][] cluster) {
         int count = 0;
-        for (int pos = 0; pos < 8; pos++) {
-            int x = cluster[pos][0] + xCoord, y = cluster[pos][1] + yCoord, z = cluster[pos][2] + zCoord;
-            Block b = worldObj.getBlock(x, y, z);
-            if (b == SteamcraftBlocks.flashBoiler) {
-                TileEntityFlashBoiler fb = (TileEntityFlashBoiler) worldObj.getTileEntity(x, y, z);
-                if (!(worldObj.getBlockMetadata(x, y, z) > 0)) {
-                    count++;
-                }
-
-            }
-
+        for (int[] offset : cluster) {
+            int x = xCoord + offset[0], y = yCoord + offset[1], z = zCoord + offset[2];
+            if (getLoadedBoiler(x, y, z) != null && worldObj.getBlockMetadata(x, y, z) == 0) count++;
         }
-
         return count;
+    }
+
+    // An unloaded member pauses production. A loaded missing/mismatched member breaks the structure.
+    private int getStructureState() {
+        int index = getValidClusterFromMetadata();
+        if (index < 0) return -1;
+        int[][] cluster = getClusterCoords(index);
+        boolean complete = true;
+        for (int pos = 0; pos < cluster.length; pos++) {
+            int x = cluster[pos][0], y = cluster[pos][1], z = cluster[pos][2];
+            if (!worldObj.blockExists(x, y, z)) {
+                complete = false;
+            } else if (getLoadedBoiler(x, y, z) == null || worldObj.getBlockMetadata(x, y, z) != pos + 1) {
+                return -1;
+            }
+        }
+        return complete ? 1 : 0;
     }
 
     private int[] getValidClusters() {
@@ -342,34 +342,43 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     private void updateMultiblock(int clusterIndex, boolean isMultiblock, int frontSide) {
+        if (worldObj == null || worldObj.isRemote || clusterIndex < 0 || clusterIndex >= validConfigs.length) return;
         int[][] cluster = getClusterCoords(clusterIndex);
-        HashSet<TileEntityFlashBoiler> boilers = new HashSet();
-        for (int pos = 7; pos >= 0; pos--) {
+        Map<TileEntityFlashBoiler, Integer> boilers = new HashMap<>();
+        for (int pos = 0; pos < cluster.length; pos++) {
             int x = cluster[pos][0], y = cluster[pos][1], z = cluster[pos][2];
-            if (worldObj.getBlock(x, y, z) == SteamcraftBlocks.flashBoiler) {
-                worldObj.setBlockMetadataWithNotify(
-                        cluster[pos][0], cluster[pos][1], cluster[pos][2],
-                        isMultiblock ? pos + 1 : 0,
-                        2
-                );
-                TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) worldObj.getTileEntity(cluster[pos][0], cluster[pos][1], cluster[pos][2]);
-                boiler.setFront(frontSide, false);
-                boilers.add(boiler);
-
-            } else {
-                ////Steamcraft.log.debug("ERROR! ("+x+","+y+","+z+") is not a flashBoiler!");
-            }
-
-        }
-        for (TileEntityFlashBoiler boiler : boilers) {
-            if (isMultiblock) {
-                SteamNetwork.newOrJoin(boiler);
-            } else {
-                if (boiler.getNetwork() != null) {
-                    boiler.getNetwork().split(boiler, true);
-                }
+            TileEntityFlashBoiler boiler = getLoadedBoiler(x, y, z);
+            if (boiler != null && worldObj.getBlockMetadata(x, y, z) == (isMultiblock ? 0 : pos + 1)) {
+                boilers.put(boiler, isMultiblock ? pos + 1 : 0);
+            } else if (isMultiblock) {
+                return;
             }
         }
+        // Snapshot and detach every affected member before metadata changes its capacity.
+        Map<SteamNetwork, HashSet<ISteamTransporter>> networks = new HashMap<>();
+        for (TileEntityFlashBoiler boiler : boilers.keySet()) {
+            if (boiler.getNetwork() != null) {
+                networks.computeIfAbsent(boiler.getNetwork(), ignored -> new HashSet<>()).add(boiler);
+            }
+        }
+        for (Map.Entry<SteamNetwork, HashSet<ISteamTransporter>> entry : networks.entrySet()) {
+            entry.getKey().unloadTransporters(entry.getValue());
+        }
+        for (Map.Entry<TileEntityFlashBoiler, Integer> entry : boilers.entrySet()) {
+            TileEntityFlashBoiler boiler = entry.getKey();
+            worldObj.setBlockMetadataWithNotify(boiler.xCoord, boiler.yCoord, boiler.zCoord, entry.getValue(), 2);
+            boiler.setFront(frontSide, false);
+            boiler.markDirty();
+            worldObj.markBlockForUpdate(boiler.xCoord, boiler.yCoord, boiler.zCoord);
+        }
+        if (isMultiblock) {
+            for (TileEntityFlashBoiler boiler : boilers.keySet()) boiler.refresh();
+        }
+    }
+
+    @Override
+    public void refresh() {
+        if (worldObj != null && getValidClusterFromMetadata() >= 0) super.refresh();
     }
 
     public TileEntityFlashBoiler getPrimaryTileEntity() {
@@ -388,9 +397,11 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     public void setFront(int frontSide, boolean print) {
-        //if (print) //Steamcraft.log.debug("Setting front side to "+frontSide);
-        if (!worldObj.isRemote)
+        if (!worldObj.isRemote && this.frontSide != frontSide) {
             this.frontSide = frontSide;
+            markDirty();
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        }
     }
 
     public int getFront() {
@@ -399,18 +410,16 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public void updateEntity() {
+        int structureState = worldObj.isRemote ? 0 : getStructureState();
+        if (!worldObj.isRemote && structureState < 0) destroyMultiblock();
         super.superUpdateOnly();
         if (worldObj.isRemote) return;
-        // Retain the legacy capacity migration for existing flash boilers.
-        if (capacity != CAPACITY) {
-            decrSteam(Math.abs(capacity - CAPACITY));
-            capacity = CAPACITY;
-        }
         if (shouldExplode) {
             if (getNetwork() != null) getNetwork().split(this, true);
             worldObj.createExplosion(null, xCoord + 0.5F, yCoord + 0.5F, zCoord + 0.5F, 4.0F, true);
             return;
         }
+        if (structureState != 1) return;
         int previousBurn = furnaceBurnTime;
         int previousCook = furnaceCookTime;
         int previousHeat = heat;
@@ -539,10 +548,12 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     public boolean isInCluster(int x, int y, int z) {
-        int[][] cluster = this.getClusterCoords(this.getValidClusterFromMetadata());
+        int index = getValidClusterFromMetadata();
+        if (index < 0) return false;
+        int[][] cluster = getClusterCoords(index);
         for (int pos = 0; pos < cluster.length; pos++) {
-            if (x == cluster[pos][0] && y == cluster[pos][1] && z == cluster[pos][1]) {
-                return worldObj.getBlock(x, y, z) == SteamcraftBlocks.flashBoiler && worldObj.getBlockMetadata(x, y, z) > 0;
+            if (x == cluster[pos][0] && y == cluster[pos][1] && z == cluster[pos][2]) {
+                return getLoadedBoiler(x, y, z) != null && worldObj.getBlockMetadata(x, y, z) == pos + 1;
             }
         }
         return false;
@@ -617,12 +628,14 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public boolean canInsert(ForgeDirection face) {
-        return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 4 && face != myDir();
+        int meta = worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
+        return meta > 4 && meta <= 8 && face != null && face != ForgeDirection.UNKNOWN && face != myDir();
     }
 
     @Override
     public int getCapacity() {
-        return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary() ? this.capacity : 0;
+        // Each formed member owns its capacity even while the primary's chunk is unloaded.
+        return getValidClusterFromMetadata() >= 0 ? CAPACITY : 0;
     }
 
     @Override
@@ -638,18 +651,9 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     @Override
-    public int getSteam() {
-        int steamOut = super.getSteam();
-        log.debug("Getting FB steam: " + steamOut);
-        return steamOut;
-    }
-
-    @Override
     public void insertSteam(int amount, ForgeDirection face) {
-        if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 && this.getNetwork() != null) {
-            this.getNetwork().addSteam(amount);
-        } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0) {
-            getPrimaryTileEntity().insertSteam(amount, face);
+        if (!worldObj.isRemote && !isInvalid() && amount > 0 && getNetwork() != null && canInsert(face)) {
+            getNetwork().addSteam(amount);
         }
     }
 
@@ -665,18 +669,13 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     @Override
-    public void decrSteam(int i) {
-        if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 && this.getNetwork() != null) {
-            this.getNetwork().decrSteam(i);
-        } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0) {
-            getPrimaryTileEntity().decrSteam(i);
-        }
-
+    public void decrSteam(int amount) {
+        if (!worldObj.isRemote && !isInvalid() && amount > 0 && getNetwork() != null) getNetwork().decrSteam(amount);
     }
 
     @Override
     public boolean doesConnect(ForgeDirection face) {
-        return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 4;
+        return getConnectionSides().contains(face);
     }
 
     @Override
@@ -777,31 +776,26 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public void explode() {
-        TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) worldObj.getTileEntity(xCoord, yCoord, zCoord);
-        if (boiler != null) {
-            int clusterIndex = boiler.getValidClusterFromMetadata();
-            if (clusterIndex >= 0) {
-                int[][] cluster = (boiler.getClusterCoords(boiler.getValidClusterFromMetadata()));
-                for (int pos = 0; pos < cluster.length; pos++) {
-                    int x = cluster[pos][0], y = cluster[pos][1], z = cluster[pos][2];
-                    if (!(x == xCoord && y == yCoord && z == zCoord)) {
-                        TileEntityFlashBoiler otherBoiler = (TileEntityFlashBoiler) worldObj.getTileEntity(x, y, z);
-                        if (otherBoiler != null) otherBoiler.secondaryExplosion();
-                    }
+        if (worldObj.isRemote || getNetwork() == null) return;
+        int index = getValidClusterFromMetadata();
+        if (index >= 0) {
+            int[][] cluster = getClusterCoords(index);
+            for (int pos = 0; pos < cluster.length; pos++) {
+                int x = cluster[pos][0], y = cluster[pos][1], z = cluster[pos][2];
+                TileEntityFlashBoiler other = getLoadedBoiler(x, y, z);
+                if (other != null && other != this && worldObj.getBlockMetadata(x, y, z) == pos + 1) {
+                    other.secondaryExplosion();
                 }
             }
-
         }
         super.explode();
-
-
     }
 
     @Override
     public HashSet<ForgeDirection> getConnectionSides() {
-        int meta = this.getBlockMetadata();
-        HashSet<ForgeDirection> sides = new HashSet();
-        if (meta > 0) {
+        int meta = worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
+        HashSet<ForgeDirection> sides = new HashSet<>();
+        if (meta > 0 && meta <= 8) {
             if (meta > 4) {
                 for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
                     sides.add(side);

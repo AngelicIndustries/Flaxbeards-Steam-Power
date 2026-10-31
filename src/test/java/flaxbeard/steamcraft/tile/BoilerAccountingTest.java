@@ -20,6 +20,7 @@ import static org.mockito.Mockito.*;
 
 public class BoilerAccountingTest {
     private World world;
+    private Block oldFlashBlock;
     private static final Item ITEM = new Item();
     public static class Boiler extends TileEntityBoiler { @Override public void refresh() {} }
     public static class FlashBoiler extends TileEntityFlashBoiler { @Override public void refresh() {} }
@@ -35,10 +36,25 @@ public class BoilerAccountingTest {
     }
 
     @Before public void setUp() {
+        oldFlashBlock = SteamcraftBlocks.flashBoiler;
+        SteamcraftBlocks.flashBoiler = mock(Block.class);
         world = mock(World.class);
         when(world.getBlock(anyInt(), anyInt(), anyInt())).thenReturn(mock(Block.class));
         when(world.getBlockMetadata(anyInt(), anyInt(), anyInt())).thenReturn(1);
         when(world.blockExists(anyInt(), anyInt(), anyInt())).thenReturn(true);
+    }
+    @After public void restoreBlock() { SteamcraftBlocks.flashBoiler = oldFlashBlock; }
+    private FlashBoiler formedFlash() {
+        FlashBoiler primary = null;
+        for (int i = 0; i < 8; i++) {
+            FlashBoiler tile = place(new FlashBoiler());
+            tile.xCoord = i % 2; tile.yCoord = i / 4; tile.zCoord = i / 2 % 2;
+            when(world.getBlock(tile.xCoord, tile.yCoord, tile.zCoord)).thenReturn(SteamcraftBlocks.flashBoiler);
+            when(world.getBlockMetadata(tile.xCoord, tile.yCoord, tile.zCoord)).thenReturn(i + 1);
+            when(world.getTileEntity(tile.xCoord, tile.yCoord, tile.zCoord)).thenReturn(tile);
+            if (i == 0) primary = tile;
+        }
+        return primary;
     }
     private <T extends TileEntityBoiler> T place(T tile) {
         tile.setWorldObj(world);
@@ -136,7 +152,7 @@ public class BoilerAccountingTest {
     }
 
     @Test public void flashBoilerProducesHundredSteamForTwentyWater() {
-        FlashBoiler tile = place(new FlashBoiler()); tile.updateEntity();
+        FlashBoiler tile = formedFlash(); tile.updateEntity();
         tile.myTank.setFluid(water(100)); tile.furnaceBurnTime = 10;
         clearInvocations(world); tile.updateEntity();
         assertEquals(80, tile.myTank.getFluidAmount()); assertEquals(100, tile.getNetwork().getSteam());
@@ -145,13 +161,13 @@ public class BoilerAccountingTest {
     }
 
     @Test public void flashBoilerDoesNotConsumeWaterWithoutSteamNetwork() {
-        FlashBoiler tile = place(new FlashBoiler()); tile.updateEntity(); tile.setNetwork(null);
+        FlashBoiler tile = formedFlash(); tile.updateEntity(); tile.setNetwork(null);
         tile.myTank.setFluid(water(100)); tile.furnaceBurnTime = 10;
         tile.updateEntity(); assertEquals(100, tile.myTank.getFluidAmount());
     }
 
     @Test public void flashBoilerCoolingPersistsEvenWhenNotBurning() {
-        FlashBoiler tile = place(new FlashBoiler()); tile.updateEntity(); tile.heat = 50;
+        FlashBoiler tile = formedFlash(); tile.updateEntity(); tile.heat = 50;
         clearInvocations(world); tile.updateEntity(); assertEquals(40, tile.heat);
         verify(world, atLeastOnce()).markTileEntityChunkModified(0, 0, 0, tile);
     }

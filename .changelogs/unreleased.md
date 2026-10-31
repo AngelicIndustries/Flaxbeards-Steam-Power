@@ -42,3 +42,7 @@
 * Use the flash boiler's actual fuel counters and primary inventory when opening its screen from any formed block, and close access when the structure changes.
 * Validate boiler GUI inputs, limit the water slot to one container, and fix shift-click ranges across the main inventory and hotbar.
 * Avoid overflow when drawing long fuel burn times and leave authoritative fuel state unchanged while rendering.
+* Connect all eight flash-boiler members to the output network and preserve exact steam shares through disassembly and reformation.
+* Keep flash-boiler capacity stable across chunk unloads, pause water and fuel consumption until the whole structure is loaded, and invalidate broken structures when missing members return.
+* Avoid loading chunks during flash-boiler formation, disassembly and explosion checks; safely handle missing tiles and disconnected steam transfers.
+* Prevent steam-machine save notifications from reloading adjacent chunks while retaining notifications for loaded neighbors.

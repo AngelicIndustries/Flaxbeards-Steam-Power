@@ -40,6 +40,7 @@ public class HammerProcessingTest {
         consumption = Config.hammerConsumption;
         Config.hammerConsumption = 10;
         world = mock(World.class);
+        when(world.blockExists(anyInt(), anyInt(), anyInt())).thenReturn(true);
         when(world.getBlock(anyInt(), anyInt(), anyInt())).thenReturn(mock(Block.class));
         hammer = new TestHammer();
         hammer.setWorldObj(world);

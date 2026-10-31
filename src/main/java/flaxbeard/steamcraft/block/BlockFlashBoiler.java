@@ -68,10 +68,11 @@ public class BlockFlashBoiler extends BlockSteamTransporter {
     }
 
     public void onBlockPreDestroy(World world, int x, int y, int z, int meta) {
-        //	//Steamcraft.log.debug(world.isRemote ? "Client: " : "Server: "+"onBlockPreDestroy");
-        // //Steamcraft.log.debug(world.isRemote ? "Client: " : "Server: "+"breakBlock");
+        if (world.isRemote) return;
         super.onBlockPreDestroy(world, x, y, z, meta);
-        TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) world.getTileEntity(x, y, z);
+        TileEntity tile = world.getTileEntity(x, y, z);
+        if (!(tile instanceof TileEntityFlashBoiler)) return;
+        TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) tile;
 
         if (boiler != null) {
             for (int i1 = 0; i1 < boiler.getSizeInventory(); ++i1) {
@@ -111,17 +112,15 @@ public class BlockFlashBoiler extends BlockSteamTransporter {
         }
 
         if (meta > 0) {
-            TileEntityFlashBoiler te = (TileEntityFlashBoiler) world.getTileEntity(x, y, z);
-            ////Steamcraft.log.debug(te.getPrimaryTileEntity().getBlockMetadata());
-            te.destroyMultiblock();
+            boiler.destroyMultiblock();
         }
 
     }
 
     public void checkMultiblock(World world, int x, int y, int z, boolean isBreaking, int frontSide) {
         if (!world.isRemote) {
-            TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) world.getTileEntity(x, y, z);
-            boiler.checkMultiblock(isBreaking, frontSide);
+            TileEntity tile = world.getTileEntity(x, y, z);
+            if (tile instanceof TileEntityFlashBoiler) ((TileEntityFlashBoiler) tile).checkMultiblock(isBreaking, frontSide);
         }
 
     }
