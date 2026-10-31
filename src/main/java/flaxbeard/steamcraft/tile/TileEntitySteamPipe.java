@@ -341,6 +341,7 @@ public class TileEntitySteamPipe extends SteamTransporterTileEntity implements I
                 if (tile instanceof TileEntitySteamPipe && ((TileEntitySteamPipe) tile).blacklistedSides.contains(direction.getOpposite().ordinal())) {
                     TileEntitySteamPipe pipe = (TileEntitySteamPipe) tile;
                     pipe.blacklistedSides.remove((Integer) direction.getOpposite().ordinal());
+                    pipe.markDirty();
 
                     //network stuff
 

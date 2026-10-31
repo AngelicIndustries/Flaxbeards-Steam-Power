@@ -1587,6 +1587,10 @@ public class SteamcraftEventHandler {
 
     @SubscribeEvent
     public void clickLeft(PlayerInteractEvent event) {
+        // Camouflage packets perform their own action after other mods approve the interaction.
+        if (event instanceof flaxbeard.steamcraft.network.CamouflageInteractionEvent) {
+            return;
+        }
         if (CrossMod.BLOOD_MAGIC) {
             BloodMagicIntegration.clickLeft(event);
         }

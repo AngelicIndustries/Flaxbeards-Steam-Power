@@ -10,6 +10,10 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemBlock;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import cpw.mods.fml.common.eventhandler.Event;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import flaxbeard.steamcraft.api.block.IDisguisableBlock;
@@ -19,18 +23,34 @@ public class CamoPacketHandler implements IMessageHandler<CamoPacket, IMessage> 
     @Override
     public IMessage onMessage(CamoPacket message, MessageContext context) {
         EntityPlayerMP player = context.getServerHandler().playerEntity;
+        ServerPacketDispatcher.INSTANCE.enqueue(player, () -> handle(message, player));
+        return null;
+    }
+
+    static void handle(CamoPacket message, EntityPlayerMP player) {
+        if (!player.isSneaking() || !ServerPacketDispatcher.canEdit(player, message.blockX, message.blockY, message.blockZ, 0)) {
+            return;
+        }
         World world = player.worldObj;
         int x = message.blockX;
         int y = message.blockY;
         int z = message.blockZ;
 
         ItemStack held = player.getHeldItem();
-        if (held == null || held.getItem() == null) {
-            return null;
+        if (held == null || held.stackSize <= 0 || !(held.getItem() instanceof ItemBlock)) {
+            return;
         }
         int heldMeta = held.getItem().getMetadata(held.getItemDamage());
         Block block = Block.getBlockFromItem(held.getItem());
         TileEntity tile = world.getTileEntity(x, y, z);
+        if (block == null || block == Blocks.air || !(tile instanceof TileEntitySteamPipe || tile instanceof IDisguisableBlock)) {
+            return;
+        }
+        PlayerInteractEvent event = new CamouflageInteractionEvent(player, x, y, z);
+        MinecraftForge.EVENT_BUS.post(event);
+        if (event.isCanceled() || event.useBlock == Event.Result.DENY || event.useItem == Event.Result.DENY) {
+            return;
+        }
         int renderType = block.getRenderType();
         if (!(block instanceof BlockContainer) && !(block instanceof ITileEntityProvider) &&
           (renderType == 0 || renderType == 39 || renderType == 31) && block.isOpaqueCube() &&
@@ -50,7 +70,7 @@ public class CamoPacketHandler implements IMessageHandler<CamoPacket, IMessage> 
 
                     pipe.disguiseBlock = block;
                     if (!player.capabilities.isCreativeMode) {
-                        player.inventory.getCurrentItem().stackSize--;
+                        player.inventory.decrStackSize(player.inventory.currentItem, 1);
                         player.inventoryContainer.detectAndSendChanges();
                     }
                     world.playSoundEffect((double) ((float) x + 0.5F), (double) ((float) y + 0.5F),
@@ -59,10 +79,10 @@ public class CamoPacketHandler implements IMessageHandler<CamoPacket, IMessage> 
                       block.stepSound.getPitch() * 0.8F);
 
                     pipe.disguiseMeta = heldMeta;
+                    tile.markDirty();
                     world.markBlockForUpdate(x, y, z);
                 }
-            }
-            if (tile instanceof IDisguisableBlock) {
+            } else if (tile instanceof IDisguisableBlock) {
                 IDisguisableBlock pipe = ((IDisguisableBlock) tile);
                 if (pipe.getDisguiseBlock() == null || pipe.getDisguiseBlock() != block ||
                   pipe.getDisguiseMeta() != heldMeta) {
@@ -78,7 +98,7 @@ public class CamoPacketHandler implements IMessageHandler<CamoPacket, IMessage> 
 
                     pipe.setDisguiseBlock(block);
                     if (!player.capabilities.isCreativeMode) {
-                        player.inventory.getCurrentItem().stackSize--;
+                        player.inventory.decrStackSize(player.inventory.currentItem, 1);
                         player.inventoryContainer.detectAndSendChanges();
                     }
                     world.playSoundEffect((double) ((float) x + 0.5F), (double) ((float) y + 0.5F),
@@ -87,10 +107,10 @@ public class CamoPacketHandler implements IMessageHandler<CamoPacket, IMessage> 
                       block.stepSound.getPitch() * 0.8F);
 
                     pipe.setDisguiseMeta(heldMeta);
+                    tile.markDirty();
                     world.markBlockForUpdate(x, y, z);
                 }
             }
         }
-        return null;
     }
 }

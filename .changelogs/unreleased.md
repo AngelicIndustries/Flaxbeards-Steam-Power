@@ -8,3 +8,7 @@
 * Fix crucible save loading, alloy bookkeeping and server-side casting synchronization.
 * Save mold inventory and lid changes reliably, clear stale client output and handle empty extraction safely.
 * Reuse existing textures for the hell crucible, smasher and steamed foods to remove missing-texture warnings.
+* Process client requests on the server tick and validate reach, loaded chunks, permissions, held items and the active steam-hammer container.
+* Bound pending client requests and reject invalid pipe sides and item names.
+* Save camouflage and pipe-connection changes, and clear inventory slots when their last camouflage block is consumed.
+* Preserve the steam hammer's requested item name across saves and synchronize it to clients.

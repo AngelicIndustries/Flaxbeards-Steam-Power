@@ -237,6 +237,7 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
     public Packet getDescriptionPacket() {
         NBTTagCompound access = super.getDescriptionTag();
 
+        access.setString("itemName", itemName);
         access.setInteger("cost", cost);
         access.setInteger("progress", progress);
         access.setInteger("hammerTicks", hammerTicks);
@@ -249,6 +250,7 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         super.onDataPacket(net, pkt);
         NBTTagCompound access = pkt.func_148857_g();
+        this.itemName = access.getString("itemName");
         this.cost = access.getInteger("cost");
         this.isWorking = access.getBoolean("isWorking");
         this.progress = access.getInteger("progress");
@@ -272,6 +274,7 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
             }
         }
 
+        this.itemName = par1NBTTagCompound.getString("itemName");
         this.cost = par1NBTTagCompound.getInteger("cost");
         this.progress = par1NBTTagCompound.getInteger("progress");
         this.hammerTicks = par1NBTTagCompound.getInteger("hammerTicks");
@@ -281,6 +284,7 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
     @Override
     public void writeToNBT(NBTTagCompound par1NBTTagCompound) {
         super.writeToNBT(par1NBTTagCompound);
+        par1NBTTagCompound.setString("itemName", itemName);
         par1NBTTagCompound.setInteger("cost", cost);
         par1NBTTagCompound.setInteger("progress", progress);
         par1NBTTagCompound.setInteger("hammerTicks", hammerTicks);

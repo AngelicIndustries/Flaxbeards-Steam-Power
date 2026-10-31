@@ -10,6 +10,7 @@ import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStoppedEvent;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.common.registry.EntityRegistry;
@@ -102,6 +103,11 @@ public class Steamcraft {
     }
 
     @EventHandler
+    public void serverStopped(FMLServerStoppedEvent event) {
+        ServerPacketDispatcher.INSTANCE.clear();
+    }
+
+    @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         Config.load(event);
 
@@ -176,6 +182,7 @@ public class Steamcraft {
         MinecraftForge.EVENT_BUS.register(new PhobicCoatingHandler());
 
         FMLCommonHandler.instance().bus().register(new SteamcraftTickHandler());
+        FMLCommonHandler.instance().bus().register(ServerPacketDispatcher.INSTANCE);
         FMLCommonHandler.instance().bus().register(new PhobicCoatingHandler());
 
         if (event.getSide() == Side.CLIENT) {
