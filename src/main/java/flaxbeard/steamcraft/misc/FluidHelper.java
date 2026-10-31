@@ -27,6 +27,7 @@ public class FluidHelper {
 	}
 
 	public static boolean itemStackIsWaterContainer(ItemStack itemStack) {
+        if (itemStack == null || itemStack.stackSize <= 0) return false;
 		FluidStack fluid = getFluidFromItemStack(itemStack);
 		
 		return itemStack != null && fluid != null && fluid.getFluid() == water;
@@ -51,77 +52,45 @@ public class FluidHelper {
 		return null;
 	}
 
-	public static void fillTankFromHeldItem(EntityPlayer player, IFluidTank tank) {
-		ItemStack newContainer = fillTankFromItem(player.getHeldItem(), tank);
-        
-        if (player.capabilities.isCreativeMode) {
-        	return;
+    public static void fillTankFromHeldItem(EntityPlayer player, IFluidTank tank) {
+        if (player.worldObj.isRemote || tank == null) return;
+        ItemStack held = player.getHeldItem();
+        if (held == null || held.stackSize <= 0) return;
+        ItemStack single = held.copy();
+        single.stackSize = 1;
+        ItemStack drained = fillTankFromItem(single, tank);
+        if (drained == single || player.capabilities.isCreativeMode) return;
+        if (held.stackSize == 1) {
+            player.inventory.setInventorySlotContents(player.inventory.currentItem, drained);
+        } else {
+            held.stackSize--;
+            if (drained != null && !player.inventory.addItemStackToInventory(drained)) {
+                player.dropPlayerItemWithRandomChoice(drained, false);
+            }
         }
-        
-    	replaceHeldItemWithDrainedContainer(player, newContainer);
-	}
-	
-	public static ItemStack fillTankFromItem(ItemStack container, IFluidTank tank) {
-		if (container == null) {
-			return null;
-		}
-		
-		/*
-		 * Special case for IFluidContainerItems. These items drain as much as they want (up to a limit)
-		 * and then update the item.
-		 */
-		if (container.getItem() instanceof IFluidContainerItem) {
-			IFluidContainerItem fluidContainerItem = (IFluidContainerItem) container.getItem();
-			int roomLeftInContainer = getRoomLeftInTank(tank);
-			
-			if (roomLeftInContainer > 0) {
-				FluidStack drained = fluidContainerItem.drain(container, roomLeftInContainer, true);
-				tank.fill(drained, true);
-			}
-			
-			return container;
-		}
-		
-		/*
-		 * For all other containers, FluidContainerRegistry will contain the fluid, and we must
-		 * create a new ItemStack to represent the drained container.
-		 */
-		FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(container);
-		
-		int amountFilled = tank.fill(fluid, true);
-        
-        if (amountFilled == 0) {
-        	return container;
+        player.inventory.markDirty();
+        player.inventoryContainer.detectAndSendChanges();
+    }
+
+    public static ItemStack fillTankFromItem(ItemStack container, IFluidTank tank) {
+        // An inventory slot cannot hold both a remaining full stack and its empty container.
+        if (container == null || container.stackSize != 1 || tank == null) return container;
+        if (container.getItem() instanceof IFluidContainerItem) {
+            IFluidContainerItem item = (IFluidContainerItem) container.getItem();
+            ItemStack result = container.copy();
+            FluidStack available = item.drain(result, Math.max(0, tank.getCapacity() - tank.getFluidAmount()), false);
+            int accepted = available == null ? 0 : tank.fill(available, false);
+            if (accepted <= 0) return container;
+            FluidStack drained = item.drain(result, accepted, true);
+            if (drained == null || drained.amount <= 0) return container;
+            tank.fill(drained, true);
+            return result;
         }
-        
-        FluidStack leftovers = fluid.copy();
-        leftovers.amount = fluid.amount - amountFilled;
-        
-    	return getContainerWithUpdatedAmount(container, leftovers);
-	}
-	
-	private static int getRoomLeftInTank(IFluidTank tank) {
-		return tank.getCapacity() - tank.getFluidAmount();
-	}
-
-	private static void replaceHeldItemWithDrainedContainer(EntityPlayer player, ItemStack newContainer) {
-		player.inventory.setInventorySlotContents(player.inventory.currentItem, newContainer);
-		player.inventoryContainer.detectAndSendChanges();
-	}
-
-	private static ItemStack getContainerWithUpdatedAmount(ItemStack container, FluidStack newFluidAmount) {
-		if (container.getItem() instanceof IFluidContainerItem) {
-			IFluidContainerItem fluidContainerItem = (IFluidContainerItem) container.getItem();
-			fluidContainerItem.drain(container, newFluidAmount.amount, true);
-			return container;
-		}
-		
-		ItemStack newContainer = FluidContainerRegistry.drainFluidContainer(container);
-		
-		if (newFluidAmount.amount > 0) {
-			return FluidContainerRegistry.fillFluidContainer(newFluidAmount, newContainer);
-		}
-		
-		return newContainer;
-	}
+        FluidStack fluid = FluidContainerRegistry.getFluidForFilledItem(container);
+        if (fluid == null || fluid.amount <= 0 || tank.fill(fluid, false) != fluid.amount) return container;
+        // Fixed-volume containers must fit completely before either side changes.
+        ItemStack empty = FluidContainerRegistry.drainFluidContainer(container);
+        tank.fill(fluid, true);
+        return empty;
+    }
 }

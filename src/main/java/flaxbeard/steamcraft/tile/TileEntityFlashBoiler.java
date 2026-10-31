@@ -107,12 +107,12 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     public TileEntityFlashBoiler() {
         super(CAPACITY);
-        super.myTank = new FluidTank(new FluidStack(FluidRegistry.WATER, 1), 80000);
+        super.myTank = createWaterTank(80000);
         this.setPressureResistance(0.5F);
     }
 
     public static int getItemBurnTime(ItemStack stack) {
-        if (stack == null) {
+        if (stack == null || stack.stackSize <= 0) {
             return 0;
         } else {
             Item item = stack.getItem();
@@ -149,7 +149,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     public void readFromNBT(NBTTagCompound access) {
         super.readFromNBT(access);
         this.frontSide = access.getInteger("frontSide");
-        NBTTagList nbttaglist = (NBTTagList) access.getTag("Items");
+        NBTTagList nbttaglist = access.getTagList("Items", 10);
         this.furnaceItemStacks = new ItemStack[2];
 
         for (int i = 0; i < nbttaglist.tagCount(); ++i) {
@@ -161,20 +161,20 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
             }
         }
 
-        this.furnaceBurnTime = access.getShort("BurnTime");
-        this.furnaceCookTime = access.getShort("CookTime");
-        this.currentItemBurnTime = access.getShort("cIBT");
+        this.furnaceBurnTime = access.getInteger("BurnTime");
+        this.furnaceCookTime = access.getInteger("CookTime");
+        this.currentItemBurnTime = access.getInteger("cIBT");
 
         if (access.hasKey("CustomName")) {
             this.field_145958_o = access.getString("CustomName");
         }
 
         if (access.hasKey("water")) {
-            this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, access.getShort("water")));
+            this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, access.getInteger("water")));
         }
 
         if (access.hasKey("heat")) {
-            this.heat = access.getShort("heat");
+            this.heat = access.getInteger("heat");
         }
         // worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
 
@@ -184,12 +184,12 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     public void writeToNBT(NBTTagCompound access) {
         super.writeToNBT(access);
         access.setInteger("frontSide", this.frontSide);
-        access.setShort("BurnTime", (short) this.furnaceBurnTime);
-        access.setShort("water", (short) myTank.getFluidAmount());
-        access.setShort("heat", (short) this.heat);
+        access.setInteger("BurnTime", this.furnaceBurnTime);
+        access.setInteger("water", myTank.getFluidAmount());
+        access.setInteger("heat", this.heat);
 
-        access.setShort("CookTime", (short) this.furnaceCookTime);
-        access.setShort("cIBT", (short) this.currentItemBurnTime);
+        access.setInteger("CookTime", this.furnaceCookTime);
+        access.setInteger("cIBT", this.currentItemBurnTime);
 
         NBTTagList nbttaglist = new NBTTagList();
 
@@ -214,9 +214,9 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
         NBTTagCompound access = super.getDescriptionTag();
         access.setInteger("frontSide", this.frontSide);
         access.setInteger("water", myTank.getFluidAmount());
-        access.setShort("BurnTime", (short) this.furnaceBurnTime);
-        access.setShort("CookTime", (short) this.furnaceCookTime);
-        access.setShort("cIBT", (short) this.currentItemBurnTime);
+        access.setInteger("BurnTime", this.furnaceBurnTime);
+        access.setInteger("CookTime", this.furnaceCookTime);
+        access.setInteger("cIBT", this.currentItemBurnTime);
         access.setBoolean("burning", burning);
 
 
@@ -229,9 +229,9 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
         NBTTagCompound access = pkt.func_148857_g();
         this.frontSide = access.getInteger("frontSide");
         this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, access.getInteger("water")));
-        this.furnaceBurnTime = access.getShort("BurnTime");
-        this.currentItemBurnTime = access.getShort("cIBT");
-        this.furnaceCookTime = access.getShort("CookTime");
+        this.furnaceBurnTime = access.getInteger("BurnTime");
+        this.currentItemBurnTime = access.getInteger("cIBT");
+        this.furnaceCookTime = access.getInteger("CookTime");
         this.burning = access.getBoolean("burning");
 
         worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
@@ -376,11 +376,15 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     }
 
     public TileEntityFlashBoiler getPrimaryTileEntity() {
-        int[][] cluster = getClusterCoords(getValidClusterFromMetadata());
+        int index = getValidClusterFromMetadata();
+        if (index < 0) return null;
+        int[][] cluster = getClusterCoords(index);
         int x = cluster[0][0], y = cluster[0][1], z = cluster[0][2];
+        if (!worldObj.blockExists(x, y, z)) return null;
         if (worldObj.getBlock(x, y, z) == SteamcraftBlocks.flashBoiler &&
           worldObj.getBlockMetadata(x, y, z) == 1) {
-            return (TileEntityFlashBoiler) worldObj.getTileEntity(x, y, z);
+            net.minecraft.tileentity.TileEntity tile = worldObj.getTileEntity(x, y, z);
+            return tile instanceof TileEntityFlashBoiler && !tile.isInvalid() ? (TileEntityFlashBoiler) tile : null;
         }
 
         return null;
@@ -399,110 +403,51 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     @Override
     public void updateEntity() {
         super.superUpdateOnly();
-        // fixes existing capacity and prevents explosions
-        if (this.capacity != CAPACITY) {
-            int steamToLose = Math.abs(this.capacity - CAPACITY);
-            this.decrSteam(steamToLose);
-            this.capacity = CAPACITY;
-
+        if (worldObj.isRemote) return;
+        // Retain the legacy capacity migration for existing flash boilers.
+        if (capacity != CAPACITY) {
+            decrSteam(Math.abs(capacity - CAPACITY));
+            capacity = CAPACITY;
         }
-        if (this.shouldExplode) {
-            this.getNetwork().split(this, true);
+        if (shouldExplode) {
+            if (getNetwork() != null) getNetwork().split(this, true);
             worldObj.createExplosion(null, xCoord + 0.5F, yCoord + 0.5F, zCoord + 0.5F, 4.0F, true);
             return;
         }
-        ////Steamcraft.log.debug(this.getFront());
-       if (waitOneTick) {
-           waitOneTick = false;
-       } else {
-            if (!worldObj.isRemote && worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
-            	ItemStack stackInInput = this.getStackInSlot(1);
-        		if (FluidHelper.itemStackIsWaterContainer(stackInInput)) {
-            		ItemStack drainedItemStack = FluidHelper.fillTankFromItem(stackInInput, myTank);
-            		setInventorySlotContents(1, drainedItemStack);
-                }
-
-                boolean flag = this.furnaceBurnTime > 0;
-                boolean flag1 = false;
-                int maxThisTick = 10;
-//                if (this.furnaceBurnTime > 0) {
-//                    maxThisTick = Math.min(furnaceBurnTime, 10);
-//                    this.furnaceBurnTime -= maxThisTick;
-
-//                }
-
-
-                if (!this.worldObj.isRemote) {
-                    if (this.furnaceBurnTime == 0 && this.canSmelt()) {
-                        this.currentItemBurnTime = this.furnaceBurnTime = getItemBurnTime(this.furnaceItemStacks[0]);
-
-                        if (this.furnaceBurnTime > 0) {
-
-                            flag1 = true;
-
-                            if (this.furnaceItemStacks[0] != null) {
-                                --this.furnaceItemStacks[0].stackSize;
-
-                                if (this.furnaceItemStacks[0].stackSize == 0) {
-                                    this.furnaceItemStacks[0] = furnaceItemStacks[0].getItem().getContainerItem(furnaceItemStacks[0]);
-                                }
-                            }
-                        }
-                        // worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        int previousBurn = furnaceBurnTime;
+        int previousCook = furnaceCookTime;
+        int previousHeat = heat;
+        if (waitOneTick) {
+            waitOneTick = false;
+        } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
+            fillFromInventoryContainer();
+            if (furnaceBurnTime == 0 && canSmelt() && getNetwork() != null) {
+                currentItemBurnTime = furnaceBurnTime = getItemBurnTime(furnaceItemStacks[0]);
+                if (furnaceBurnTime > 0) {
+                    if (--furnaceItemStacks[0].stackSize == 0) {
+                        furnaceItemStacks[0] = furnaceItemStacks[0].getItem().getContainerItem(furnaceItemStacks[0]);
                     }
-
-                    if (!this.isBurning() && this.heat > 0) {
-                        this.heat -= Math.min(this.heat, 10);
-                    }
-
-                    if (this.isBurning() && this.heat < 1600) {
-                        this.heat++;
-                    }
-
-                    if (this.isBurning() && this.canSmelt()) {
-                        ++this.furnaceCookTime;
-
-                        if (this.furnaceCookTime > 0) {
-                            int i = 0;
-                            //HEAT COMMENTED OUT
-                            int maxSteamThisTick = (int) (((float) maxThisTick) * 0.7F + (maxThisTick * 0.3F * (
-                              1600.0F / 1600.0F)));
-//                            System.out.println("HEAT IS: " + heat + " MAX STEAM IS: " + maxSteamThisTick);
-                            while (i < maxSteamThisTick && this.isBurning() && this.canSmelt()) {
-                                this.insertSteam(10);
-                                this.myTank.drain(2, true);
-                                i++;
-                            }
-                            this.furnaceCookTime = 0;
-
-                            flag1 = true;
-                        }
-                    } else {
-                        this.furnaceCookTime = 0;
-                    }
-
-                    if (flag != this.furnaceBurnTime > 0) {
-                        flag1 = true;
-                        //BlockBoiler.updateFurnaceBlockState(this.furnaceBurnTime > 0, this.worldObj, this.xCoord, this.yCoord, this.zCoord);
-                    }
-                }
-
-                if (this.isBurning() != this.wasBurning) {
-                    this.wasBurning = this.isBurning();
-                    this.burning = this.isBurning();
-                    this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+                    markDirty();
                 }
             }
+            if (!isBurning() && heat > 0) heat -= Math.min(heat, 10);
+            if (isBurning() && heat < 1600) heat++;
+            // Preserve ten conversion steps per tick and the existing water threshold.
+            if (getNetwork() != null) {
+                for (int i = 0; i < 10 && isBurning() && canSmelt(); i++) {
+                    insertSteam(10);
+                    myTank.drain(2, true);
+                }
+            }
+            furnaceCookTime = 0;
         }
-
-        if (this.furnaceBurnTime > 0) {
-            this.furnaceBurnTime -= 1;
+        if (furnaceBurnTime > 0) furnaceBurnTime--;
+        if (previousBurn != furnaceBurnTime || previousCook != furnaceCookTime || previousHeat != heat) markDirty();
+        if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 && wasBurning != isBurning()) {
+            wasBurning = isBurning();
+            burning = wasBurning;
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
         }
-
-        if (!this.worldObj.isRemote) {
-            ////Steamcraft.log.debug(this.furnaceBurnTime);
-        }
-        //this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
     }
 
     private void insertSteam(int i) {
@@ -557,12 +502,15 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
                 if (this.furnaceItemStacks[par1].stackSize <= par2) {
                     itemstack = this.furnaceItemStacks[par1];
                     this.furnaceItemStacks[par1] = null;
+                    markDirty();
                     return itemstack;
                 } else {
                     itemstack = this.furnaceItemStacks[par1].splitStack(par2);
+                    markDirty();
 
                     if (this.furnaceItemStacks[par1].stackSize == 0) {
                         this.furnaceItemStacks[par1] = null;
+                        markDirty();
                     }
 
                     return itemstack;
@@ -582,6 +530,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
             if (this.furnaceItemStacks[par1] != null) {
                 ItemStack itemstack = this.furnaceItemStacks[par1];
                 this.furnaceItemStacks[par1] = null;
+                markDirty();
                 return itemstack;
             } else {
                 return null;
@@ -606,11 +555,12 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     public void setInventorySlotContents(int par1, ItemStack par2ItemStack) {
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
             this.furnaceItemStacks[par1] = par2ItemStack;
+            markDirty();
 
             if (par2ItemStack != null && par2ItemStack.stackSize > this.getInventoryStackLimit()) {
                 par2ItemStack.stackSize = this.getInventoryStackLimit();
             }
-        } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0) {
+        } else if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary()) {
             getPrimaryTileEntity().setInventorySlotContents(par1, par2ItemStack);
         }
     }

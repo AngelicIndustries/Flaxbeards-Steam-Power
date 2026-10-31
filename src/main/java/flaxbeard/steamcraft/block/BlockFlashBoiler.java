@@ -152,24 +152,17 @@ public class BlockFlashBoiler extends BlockSteamTransporter {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float xf, float yf, float zf) {
-    	if (world.getBlockMetadata(x, y, z) <= 0) {
-    		return false;
-    	}
-
-    	TileEntityFlashBoiler tileEntity = (TileEntityFlashBoiler) world.getTileEntity(x, y, z);
-
-        if (tileEntity == null) {
-            return false;
-        }
-
-        boolean isClient = !world.isRemote;
-        
-	    if (!FluidHelper.playerIsHoldingWaterContainer(player) && isClient) {
-    		player.openGui(Steamcraft.instance, 0, world, x, y, z);
+        net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+        if (!(tile instanceof TileEntityFlashBoiler)) return false;
+        TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) tile;
+        boiler = boiler.getPrimaryTileEntity();
+        if (boiler == null) return false;
+        if (world.isRemote) return true;
+        if (FluidHelper.playerIsHoldingWaterContainer(player)) {
+            FluidHelper.fillTankFromHeldItem(player, boiler.getTank());
         } else {
-        	FluidHelper.fillTankFromHeldItem(player, tileEntity.getTank());
+            player.openGui(Steamcraft.instance, 0, world, x, y, z);
         }
-
         return true;
     }
 

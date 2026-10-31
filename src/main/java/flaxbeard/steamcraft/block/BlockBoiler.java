@@ -234,16 +234,15 @@ public class BlockBoiler extends BlockSteamTransporter implements IWrenchable {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float xf, float yf, float zf) {
-    	TileEntityBoiler tileEntity = (TileEntityBoiler) world.getTileEntity(x, y, z);
-
-        boolean isClient = !world.isRemote;
-
-	    if (!FluidHelper.playerIsHoldingWaterContainer(player) && isClient && tileEntity != null) {
-    		player.openGui(Steamcraft.instance, 0, world, x, y, z);
+        net.minecraft.tileentity.TileEntity tile = world.getTileEntity(x, y, z);
+        if (!(tile instanceof TileEntityBoiler)) return false;
+        TileEntityBoiler boiler = (TileEntityBoiler) tile;
+        if (world.isRemote) return true;
+        if (FluidHelper.playerIsHoldingWaterContainer(player)) {
+            FluidHelper.fillTankFromHeldItem(player, boiler.getTank());
         } else {
-        	FluidHelper.fillTankFromHeldItem(player, tileEntity.myTank);
+            player.openGui(Steamcraft.instance, 0, world, x, y, z);
         }
-
         return true;
     }
 

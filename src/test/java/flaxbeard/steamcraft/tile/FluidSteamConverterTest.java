@@ -1,9 +1,7 @@
 package flaxbeard.steamcraft.tile;
 
-import cpw.mods.fml.common.Loader;
 import flaxbeard.steamcraft.api.steamnet.SteamNetwork;
 import net.minecraft.block.Block;
-import net.minecraft.init.Blocks;
 import flaxbeard.steamcraft.Config;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
@@ -23,33 +21,9 @@ public class FluidSteamConverterTest {
     private static final ForgeDirection FACE = ForgeDirection.EAST;
 
     @BeforeClass public static void registerFluids() throws Exception {
-        // Fluid registration only needs an active mod name. Avoid starting FML's LaunchWrapper loader.
-        Field instance = Loader.class.getDeclaredField("instance");
-        instance.setAccessible(true);
-        Object previous = instance.get(null);
-        // Vanilla block registration is also absent in the unit-test JVM.
-        Field modifiers = Field.class.getDeclaredField("modifiers");
-        modifiers.setAccessible(true);
-        java.util.Map<Field, Object> replacedBlocks = new java.util.HashMap<>();
-        for (String name : new String[]{"water", "lava"}) {
-            Field field = Blocks.class.getField(name);
-            modifiers.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
-            field.setAccessible(true);
-            if (field.get(null) == null) {
-                replacedBlocks.put(field, null);
-                field.set(null, mock(Block.class));
-            }
-        }
-        instance.set(null, mock(Loader.class));
-        try {
-            FluidRegistry.registerFluid(new Fluid("steam"));
-            FluidRegistry.registerFluid(new Fluid("ic2steam"));
-            steam = FluidRegistry.getFluid("steam");
-            ic2Steam = FluidRegistry.getFluid("ic2steam");
-        } finally {
-            instance.set(null, previous);
-            for (Field field : replacedBlocks.keySet()) field.set(null, replacedBlocks.get(field));
-        }
+        flaxbeard.steamcraft.test.ForgeFluidTestSupport.bootstrap();
+        steam = FluidRegistry.getFluid("steam");
+        ic2Steam = FluidRegistry.getFluid("ic2steam");
     }
 
     @Before public void setUp() {

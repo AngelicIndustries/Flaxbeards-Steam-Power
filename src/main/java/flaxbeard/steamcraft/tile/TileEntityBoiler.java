@@ -30,7 +30,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     private static final int[] slotsTop = new int[]{0, 1};
     private static final int[] slotsBottom = new int[]{0, 1};
     private static final int[] slotsSides = new int[]{0, 1};
-    public FluidTank myTank = new FluidTank(new FluidStack(FluidRegistry.WATER, 1), 10000);
+    public FluidTank myTank = createWaterTank(10000);
     public int furnaceCookTime;
     public int furnaceBurnTime;
     public int currentItemBurnTime;
@@ -52,7 +52,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     }
 
     public static int getItemBurnTime(ItemStack stack) {
-        if (stack == null) {
+        if (stack == null || stack.stackSize <= 0) {
             return 0;
         } else {
             Item item = stack.getItem();
@@ -89,9 +89,9 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     public Packet getDescriptionPacket() {
         NBTTagCompound access = super.getDescriptionTag();
         access.setInteger("water", myTank.getFluidAmount());
-        access.setShort("BurnTime", (short) this.furnaceBurnTime);
-        access.setShort("CookTime", (short) this.furnaceCookTime);
-        access.setShort("cIBT", (short) this.currentItemBurnTime);
+        access.setInteger("BurnTime", this.furnaceBurnTime);
+        access.setInteger("CookTime", this.furnaceCookTime);
+        access.setInteger("cIBT", this.currentItemBurnTime);
         access.setInteger("disguiseBlock", Block.getIdFromBlock(disguiseBlock));
         access.setInteger("disguiseMeta", disguiseMeta);
 
@@ -103,9 +103,9 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
         super.onDataPacket(net, pkt);
         NBTTagCompound access = pkt.func_148857_g();
         this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, access.getInteger("water")));
-        this.furnaceBurnTime = access.getShort("BurnTime");
-        this.currentItemBurnTime = access.getShort("cIBT");
-        this.furnaceCookTime = access.getShort("CookTime");
+        this.furnaceBurnTime = access.getInteger("BurnTime");
+        this.currentItemBurnTime = access.getInteger("cIBT");
+        this.furnaceCookTime = access.getInteger("CookTime");
         this.disguiseBlock = Block.getBlockById(access.getInteger("disguiseBlock"));
         this.disguiseMeta = access.getInteger("disguiseMeta");
         worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
@@ -114,7 +114,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     @Override
     public void readFromNBT(NBTTagCompound par1NBTTagCompound) {
         super.readFromNBT(par1NBTTagCompound);
-        NBTTagList nbttaglist = (NBTTagList) par1NBTTagCompound.getTag("Items");
+        NBTTagList nbttaglist = par1NBTTagCompound.getTagList("Items", 10);
         this.furnaceItemStacks = new ItemStack[2];
 
         for (int i = 0; i < nbttaglist.tagCount(); ++i) {
@@ -126,16 +126,16 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
             }
         }
 
-        this.furnaceBurnTime = par1NBTTagCompound.getShort("BurnTime");
-        this.furnaceCookTime = par1NBTTagCompound.getShort("CookTime");
-        this.currentItemBurnTime = par1NBTTagCompound.getShort("cIBT");
+        this.furnaceBurnTime = par1NBTTagCompound.getInteger("BurnTime");
+        this.furnaceCookTime = par1NBTTagCompound.getInteger("CookTime");
+        this.currentItemBurnTime = par1NBTTagCompound.getInteger("cIBT");
 
         if (par1NBTTagCompound.hasKey("CustomName")) {
             this.field_145958_o = par1NBTTagCompound.getString("CustomName");
         }
 
         if (par1NBTTagCompound.hasKey("water")) {
-            this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, par1NBTTagCompound.getShort("water")));
+            this.myTank.setFluid(new FluidStack(FluidRegistry.WATER, par1NBTTagCompound.getInteger("water")));
         }
         this.disguiseBlock = Block.getBlockById(par1NBTTagCompound.getInteger("disguiseBlock"));
         this.disguiseMeta = par1NBTTagCompound.getInteger("disguiseMeta");
@@ -144,10 +144,10 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     @Override
     public void writeToNBT(NBTTagCompound par1NBTTagCompound) {
         super.writeToNBT(par1NBTTagCompound);
-        par1NBTTagCompound.setShort("BurnTime", (short) this.furnaceBurnTime);
-        par1NBTTagCompound.setShort("water", (short) myTank.getFluidAmount());
-        par1NBTTagCompound.setShort("CookTime", (short) this.furnaceCookTime);
-        par1NBTTagCompound.setShort("cIBT", (short) this.currentItemBurnTime);
+        par1NBTTagCompound.setInteger("BurnTime", this.furnaceBurnTime);
+        par1NBTTagCompound.setInteger("water", myTank.getFluidAmount());
+        par1NBTTagCompound.setInteger("CookTime", this.furnaceCookTime);
+        par1NBTTagCompound.setInteger("cIBT", this.currentItemBurnTime);
         par1NBTTagCompound.setInteger("disguiseBlock", Block.getIdFromBlock(disguiseBlock));
         par1NBTTagCompound.setInteger("disguiseMeta", disguiseMeta);
 
@@ -176,80 +176,64 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     @Override
     public void updateEntity() {
         super.updateEntity();
-        if (this.worldObj.isRemote) {
+        if (worldObj.isRemote) {
             boolean hasWrench = BlockSteamPipeRenderer.updateWrenchStatus();
-            if (hasWrench != lastWrench && !(this.disguiseBlock == null || this.disguiseBlock == Blocks.air)) {
-                this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+            if (hasWrench != lastWrench && !(disguiseBlock == null || disguiseBlock == Blocks.air)) {
+                worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
             }
             lastWrench = hasWrench;
+            return;
         }
 
-        ItemStack stackInInput = this.getStackInSlot(1);
-	    if (FluidHelper.itemStackIsWaterContainer(stackInInput)) {
-    		ItemStack drainedItemStack = FluidHelper.fillTankFromItem(stackInInput, myTank);
-    		setInventorySlotContents(1, drainedItemStack);
-        }
-
-        boolean flag = this.furnaceBurnTime > 0;
-        boolean flag1 = false;
-        int maxThisTick = 10;
-        if (this.furnaceBurnTime > 0) {
-            //maxThisTick = Math.min(furnaceBurnTime, 10);
-            this.furnaceBurnTime -= 1; //maxThisTick
-
-        }
-
-
-        if (!this.worldObj.isRemote) {
-            if (this.furnaceBurnTime == 0 && this.canSmelt()) {
-                this.currentItemBurnTime = this.furnaceBurnTime = getItemBurnTime(this.furnaceItemStacks[0]);
-
-                if (this.furnaceBurnTime > 0) {
-
-                    flag1 = true;
-
-                    if (this.furnaceItemStacks[0] != null) {
-                        --this.furnaceItemStacks[0].stackSize;
-
-                        if (this.furnaceItemStacks[0].stackSize == 0) {
-                            this.furnaceItemStacks[0] = furnaceItemStacks[0].getItem().getContainerItem(furnaceItemStacks[0]);
-                        }
-                    }
+        fillFromInventoryContainer();
+        int previousBurn = furnaceBurnTime;
+        int previousCook = furnaceCookTime;
+        if (furnaceBurnTime > 0) furnaceBurnTime--;
+        if (furnaceBurnTime == 0 && canSmelt() && getNetwork() != null) {
+            currentItemBurnTime = furnaceBurnTime = getItemBurnTime(furnaceItemStacks[0]);
+            if (furnaceBurnTime > 0) {
+                if (--furnaceItemStacks[0].stackSize == 0) {
+                    furnaceItemStacks[0] = furnaceItemStacks[0].getItem().getContainerItem(furnaceItemStacks[0]);
                 }
-
-                //worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
-            }
-
-            if (this.isBurning() && this.canSmelt() && this.getNetwork() != null) {
-                ++this.furnaceCookTime;
-
-                if (this.furnaceCookTime > 0) {
-                    //int i = 0;
-                    //	while (i<maxThisTick && this.isBurning() && this.canSmelt()) {
-                    this.getNetwork().addSteam(10);
-                    this.myTank.drain(2, true);
-                    ///i++;
-                    //}
-                    this.furnaceCookTime = 0;
-
-                    flag1 = true;
-                }
-            } else {
-                this.furnaceCookTime = 0;
-            }
-
-            if (flag != this.furnaceBurnTime > 0) {
-                flag1 = true;
-                worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+                markDirty();
             }
         }
-
-        if (!worldObj.isRemote) {
-            if (wasBurning != this.isBurning()) {
-                worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
-                wasBurning = this.isBurning();
-            }
+        if (isBurning() && canSmelt() && getNetwork() != null) {
+            getNetwork().addSteam(10);
+            myTank.drain(2, true);
         }
+        furnaceCookTime = 0;
+        if (previousBurn != furnaceBurnTime || previousCook != furnaceCookTime) markDirty();
+        if (wasBurning != isBurning()) {
+            wasBurning = isBurning();
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        }
+    }
+
+    protected void fillFromInventoryContainer() {
+        ItemStack input = getStackInSlot(1);
+        if (FluidHelper.itemStackIsWaterContainer(input)) {
+            ItemStack drained = FluidHelper.fillTankFromItem(input, myTank);
+            if (drained != input) setInventorySlotContents(1, drained);
+        }
+    }
+
+    protected FluidTank createWaterTank(int capacity) {
+        return new FluidTank(new FluidStack(FluidRegistry.WATER, 1), capacity) {
+            @Override public int fill(FluidStack resource, boolean doFill) {
+                if (worldObj == null || worldObj.isRemote || isInvalid() || resource == null
+                    || resource.amount <= 0 || resource.getFluid() != FluidRegistry.WATER) return 0;
+                int filled = super.fill(resource, doFill);
+                if (doFill && filled > 0) markDirty();
+                return filled;
+            }
+            @Override public FluidStack drain(int amount, boolean doDrain) {
+                if (worldObj == null || worldObj.isRemote || isInvalid() || amount <= 0) return null;
+                FluidStack drained = super.drain(amount, doDrain);
+                if (doDrain && drained != null && drained.amount > 0) markDirty();
+                return drained;
+            }
+        };
     }
 
     private boolean canSmelt() {
@@ -312,9 +296,11 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
             if (this.furnaceItemStacks[par1].stackSize <= par2) {
                 itemstack = this.furnaceItemStacks[par1];
                 this.furnaceItemStacks[par1] = null;
+                markDirty();
                 return itemstack;
             } else {
                 itemstack = this.furnaceItemStacks[par1].splitStack(par2);
+                markDirty();
 
                 if (this.furnaceItemStacks[par1].stackSize == 0) {
                     this.furnaceItemStacks[par1] = null;
@@ -332,6 +318,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
         if (this.furnaceItemStacks[par1] != null) {
             ItemStack itemstack = this.furnaceItemStacks[par1];
             this.furnaceItemStacks[par1] = null;
+            markDirty();
             return itemstack;
         } else {
             return null;
@@ -341,6 +328,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     @Override
     public void setInventorySlotContents(int par1, ItemStack par2ItemStack) {
         this.furnaceItemStacks[par1] = par2ItemStack;
+        markDirty();
 
         if (par2ItemStack != null && par2ItemStack.stackSize > this.getInventoryStackLimit()) {
             par2ItemStack.stackSize = this.getInventoryStackLimit();

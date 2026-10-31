@@ -107,13 +107,8 @@ public class ContainerBoiler extends Container {
             this.furnace.pressure = (float) par2 / 1000F;
         }
         if (par1 == 4) {
-            int current = this.furnace.getTank().getFluidAmount();
-            int diff = par2 - current;
-            if (diff > 0) {
-                this.furnace.getTank().fill(new FluidStack(FluidRegistry.WATER, diff), true);
-            } else {
-                this.furnace.getTank().drain(-1 * diff, true);
-            }
+            // Apply authoritative display state without using server-only transfer methods.
+            this.furnace.getTank().setFluid(new FluidStack(FluidRegistry.WATER, Math.max(0, par2)));
         }
     }
 

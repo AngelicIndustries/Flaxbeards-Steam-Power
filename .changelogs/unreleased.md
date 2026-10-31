@@ -33,3 +33,8 @@
 * Debit converter output only once, honor the requested steam fluid, and expose its shared storage as one tank.
 * Run automatic converter output only on the server, avoid unloaded-neighbor lookups, and animate and save successful transfers.
 * Preserve the converter's final mB during fluid extraction and save wrench mode changes immediately.
+* Save full flash-boiler water tanks and long fuel burn times without 16-bit truncation, while retaining support for older numeric save tags.
+* Validate boiler water input and save tank, inventory, fuel countdown and flash-boiler heat changes immediately.
+* Fill boilers and consume fuel on the server, and prevent flash boilers from spending water without a steam network.
+* Preserve buckets when their full contents do not fit, transfer only accepted amounts from refillable containers, and keep creative containers intact.
+* Return empty containers correctly when filling from held stacks, and safely handle flash-boiler input when its primary block is unavailable.
