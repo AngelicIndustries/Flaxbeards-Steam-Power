@@ -505,11 +505,13 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public ItemStack getStackInSlot(int slot) {
+        if (!isInventorySlot(slot)) return null;
         return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 ? this.furnaceItemStacks[slot] : (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary() ? getPrimaryTileEntity().getStackInSlot(slot) : null);
     }
 
     @Override
     public ItemStack decrStackSize(int par1, int par2) {
+        if (!isInventorySlot(par1) || par2 <= 0) return null;
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
             if (this.furnaceItemStacks[par1] != null) {
                 ItemStack itemstack;
@@ -541,6 +543,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public ItemStack getStackInSlotOnClosing(int par1) {
+        if (!isInventorySlot(par1)) return null;
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
             if (this.furnaceItemStacks[par1] != null) {
                 ItemStack itemstack = this.furnaceItemStacks[par1];
@@ -570,6 +573,8 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public void setInventorySlotContents(int par1, ItemStack par2ItemStack) {
+        if (!isInventorySlot(par1)) return;
+        if (par2ItemStack != null && par2ItemStack.stackSize <= 0) par2ItemStack = null;
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
             this.furnaceItemStacks[par1] = par2ItemStack;
             markDirty();
@@ -613,7 +618,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public boolean isItemValidForSlot(int slot, ItemStack stack) {
-    	return slot == 0 ? getItemBurnTime(stack) > 0 : FluidHelper.itemStackIsWaterContainer(stack);
+        return super.isItemValidForSlot(slot, stack);
     }
 
     @Override
@@ -716,26 +721,17 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     @Override
     public int[] getAccessibleSlotsFromSide(int side) {
-        return side == 0 ? slotsBottom : (side == 1 ? slotsTop : slotsSides);
+        return getSizeInventory() > 0 ? super.getAccessibleSlotsFromSide(side) : new int[0];
     }
 
     @Override
     public boolean canInsertItem(int slot, ItemStack stack, int side) {
-        int[] accessibleSlots = getAccessibleSlotsFromSide(side);
-        boolean isAccessibleSlot = false;
-        for (int i = 0; i < accessibleSlots.length; i++) {
-            if (accessibleSlots[i] == slot) isAccessibleSlot = true;
-        }
-        return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary() ? this.isItemValidForSlot(slot, stack) && isAccessibleSlot : false;
+        return getSizeInventory() > 0 && super.canInsertItem(slot, stack, side);
     }
 
     @Override
     public boolean canExtractItem(int slot, ItemStack stack, int side) {
-        if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
-            return stack.getItem() == Items.bucket;
-        } else {
-            return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary() ? getPrimaryTileEntity().canExtractItem(slot, stack, side) : false;
-        }
+        return getSizeInventory() > 0 && super.canExtractItem(slot, stack, side);
     }
 
     @SideOnly(Side.CLIENT)

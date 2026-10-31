@@ -285,11 +285,12 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
 
     @Override
     public ItemStack getStackInSlot(int par1) {
-        return this.furnaceItemStacks[par1];
+        return isInventorySlot(par1) ? this.furnaceItemStacks[par1] : null;
     }
 
     @Override
     public ItemStack decrStackSize(int par1, int par2) {
+        if (!isInventorySlot(par1) || par2 <= 0) return null;
         if (this.furnaceItemStacks[par1] != null) {
             ItemStack itemstack;
 
@@ -315,6 +316,7 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
 
     @Override
     public ItemStack getStackInSlotOnClosing(int par1) {
+        if (!isInventorySlot(par1)) return null;
         if (this.furnaceItemStacks[par1] != null) {
             ItemStack itemstack = this.furnaceItemStacks[par1];
             this.furnaceItemStacks[par1] = null;
@@ -327,6 +329,8 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
 
     @Override
     public void setInventorySlotContents(int par1, ItemStack par2ItemStack) {
+        if (!isInventorySlot(par1)) return;
+        if (par2ItemStack != null && par2ItemStack.stackSize <= 0) par2ItemStack = null;
         this.furnaceItemStacks[par1] = par2ItemStack;
         markDirty();
 
@@ -367,24 +371,30 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
     public void closeInventory() {
     }
 
+    protected boolean isInventorySlot(int slot) {
+        return slot >= 0 && slot < 2;
+    }
+
     @Override
     public boolean isItemValidForSlot(int slot, ItemStack stack) {
-    	return slot == 0 ? getItemBurnTime(stack) > 0 : FluidHelper.itemStackIsWaterContainer(stack);
+        return slot == 0 ? getItemBurnTime(stack) > 0 : slot == 1 && FluidHelper.itemStackIsWaterContainer(stack);
     }
 
     @Override
     public int[] getAccessibleSlotsFromSide(int par1) {
-        return par1 == 0 ? slotsBottom : (par1 == 1 ? slotsTop : slotsSides);
+        return par1 >= 0 && par1 < 6 ? slotsSides : new int[0];
     }
 
     @Override
     public boolean canInsertItem(int par1, ItemStack par2ItemStack, int par3) {
-        return this.isItemValidForSlot(par1, par2ItemStack);
+        return par3 >= 0 && par3 < 6 && isItemValidForSlot(par1, par2ItemStack)
+            && (par1 != 1 || getStackInSlot(1) == null);
     }
 
     @Override
     public boolean canExtractItem(int par1, ItemStack par2ItemStack, int par3) {
-        return par2ItemStack.getItem() == Items.bucket;
+        return isInventorySlot(par1) && par3 >= 0 && par3 < 6 && par2ItemStack != null && par2ItemStack.stackSize > 0
+            && (par2ItemStack.getItem() == Items.bucket || par1 == 1 && FluidHelper.itemStackIsEmptyContainer(par2ItemStack));
     }
 
     @SideOnly(Side.CLIENT)

@@ -33,6 +33,15 @@ public class FluidHelper {
 		return itemStack != null && fluid != null && fluid.getFluid() == water;
 	}
 
+    public static boolean itemStackIsEmptyContainer(ItemStack stack) {
+        if (stack == null || stack.stackSize <= 0) return false;
+        if (stack.getItem() instanceof IFluidContainerItem) {
+            FluidStack fluid = ((IFluidContainerItem) stack.getItem()).getFluid(stack);
+            return fluid == null || fluid.amount <= 0;
+        }
+        return FluidContainerRegistry.isEmptyContainer(stack);
+    }
+
 	private static FluidStack getFluidFromItemStack(ItemStack itemStack) {
 		if (itemStack == null) {
 			return null;

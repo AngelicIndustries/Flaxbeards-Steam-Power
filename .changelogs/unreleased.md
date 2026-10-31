@@ -48,3 +48,5 @@
 * Prevent steam-machine save notifications from reloading adjacent chunks while retaining notifications for loaded neighbors.
 * Recover stored items when breaking an unformed flash boiler or a secondary with legacy contents, without duplicating the shared inventory.
 * Preserve unused burn time stored in secondary flash-boiler blocks until those contents can be recovered.
+* Reject invalid boiler inventory slots, sides and extraction amounts instead of crashing or increasing stored stacks.
+* Keep automated water input to one container at a time and allow hoppers to recover empty bottles and refillable containers after draining.
