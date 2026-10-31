@@ -33,6 +33,7 @@ public class GuiSteamAnvil extends GuiContainer implements ICrafting {
     private InventoryPlayer field_147094_x;
     private TileEntitySteamHammer hammer;
     private boolean canEdit = false;
+    private String lastSyncedName = "";
 
     public GuiSteamAnvil(InventoryPlayer par1InventoryPlayer, TileEntitySteamHammer par2Hammer, World par2World, int par3, int par4, int par5) {
         super(new ContainerSteamAnvil(par1InventoryPlayer, par2Hammer, par2World, par3, par4, par5, Minecraft.getMinecraft().thePlayer));
@@ -57,6 +58,7 @@ public class GuiSteamAnvil extends GuiContainer implements ICrafting {
         this.inventorySlots.removeCraftingFromCrafters(this);
         this.inventorySlots.addCraftingToCrafters(this);
         this.field_147091_w.setText(hammer.itemName);
+        lastSyncedName = hammer.itemName;
         canEdit = true;
         /*
         if (!this.field_147092_v.getSlot(0).getHasStack()) {
@@ -141,9 +143,20 @@ public class GuiSteamAnvil extends GuiContainer implements ICrafting {
           s.equals(slot.getStack().getDisplayName())) || slot != null && slot.getStack() == null) {
             s = "";
         }
-        if (!s.equals("") && canEdit) {
+        if (canEdit) {
             ItemNamePacket packet = new ItemNamePacket(hammer.xCoord, hammer.yCoord, hammer.zCoord, s);
             Steamcraft.channel.sendToServer(packet);
+        }
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        // Another player may rename the same hammer while this screen is open.
+        // Wait until editing ends before replacing the local text with the server's name.
+        if (!this.field_147091_w.isFocused() && !hammer.itemName.equals(lastSyncedName)) {
+            this.field_147091_w.setText(hammer.itemName);
+            lastSyncedName = hammer.itemName;
         }
     }
 
@@ -205,12 +218,10 @@ public class GuiSteamAnvil extends GuiContainer implements ICrafting {
      */
     public void sendSlotContents(Container par1Container, int par2, ItemStack par3ItemStack) {
         if (par2 == 0) {
-            this.field_147091_w.setText(par3ItemStack == null ? "" : par3ItemStack.getDisplayName());
+            this.field_147091_w.setText(par3ItemStack == null ? ""
+                : hammer.itemName.isEmpty() ? par3ItemStack.getDisplayName() : hammer.itemName);
             this.field_147091_w.setEnabled(par3ItemStack != null);
 
-            if (par3ItemStack != null) {
-                this.func_147090_g();
-            }
         }
     }
 

@@ -5,6 +5,7 @@ import cpw.mods.fml.relauncher.SideOnly;
 import flaxbeard.steamcraft.Steamcraft;
 import flaxbeard.steamcraft.tile.TileEntitySteamHammer;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockAnvil;
 import net.minecraft.block.BlockContainer;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.renderer.texture.IIconRegister;
@@ -107,7 +108,7 @@ public class BlockSteamHammer extends BlockContainer {
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float subX, float subY, float subZ) {
         if (world.getBlock(x, y - 1, z) != null) {
-            if (world.getBlock(x, y - 1, z) == Blocks.anvil) {
+            if (world.getBlock(x, y - 1, z) instanceof BlockAnvil) {
                 if (world.isRemote) {
                     return true;
                 } else {

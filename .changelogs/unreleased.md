@@ -15,3 +15,5 @@
 * Run crucible dunking and tipping on the server, fix wildcard dunking recipes, and save liquid changes immediately.
 * Consume steam for crucible heating only when an item can actually melt.
 * Respect edit permissions when wrenching, preserve tile interaction results, and save changed machine settings.
+* Allow steam hammers to use anvil subclasses, including Et Futurum's replacement, with normal anvil wear.
+* Synchronize hammer name fields between open screens, allow clearing names, and prevent slot updates from sending unintended renames.

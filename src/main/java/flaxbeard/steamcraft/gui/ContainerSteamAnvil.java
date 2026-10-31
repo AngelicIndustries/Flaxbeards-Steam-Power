@@ -4,6 +4,8 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 import flaxbeard.steamcraft.tile.TileEntitySteamHammer;
 import net.minecraft.client.entity.EntityClientPlayerMP;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockAnvil;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.player.EntityPlayer;
@@ -105,7 +107,8 @@ public class ContainerSteamAnvil extends Container {
 
                 ContainerSteamAnvil.this.hammer.cost = 0;
 
-                if (!par1EntityPlayer.capabilities.isCreativeMode && !par2World.isRemote && par2World.getBlock(par3, par4, par5) == Blocks.anvil && par1EntityPlayer.getRNG().nextFloat() < 0.12F) {
+                Block anvil = par2World.getBlock(par3, par4, par5);
+                if (!par1EntityPlayer.capabilities.isCreativeMode && !par2World.isRemote && anvil instanceof BlockAnvil && par1EntityPlayer.getRNG().nextFloat() < 0.12F) {
                     int i1 = par2World.getBlockMetadata(par3, par4, par5);
                     int k = i1 & 3;
                     int l = i1 >> 2;
@@ -439,7 +442,8 @@ public class ContainerSteamAnvil extends Container {
 
     @Override
     public boolean canInteractWith(EntityPlayer par1EntityPlayer) {
-        return this.theWorld.getBlock(this.field_82861_i, this.field_82858_j, this.field_82859_k) != Blocks.anvil ? false : par1EntityPlayer.getDistanceSq((double) this.field_82861_i + 0.5D, (double) this.field_82858_j + 0.5D, (double) this.field_82859_k + 0.5D) <= 64.0D;
+        return this.theWorld.getBlock(this.field_82861_i, this.field_82858_j, this.field_82859_k) instanceof BlockAnvil
+            && par1EntityPlayer.getDistanceSq(this.field_82861_i + 0.5D, this.field_82858_j + 0.5D, this.field_82859_k + 0.5D) <= 64.0D;
     }
 
     /**

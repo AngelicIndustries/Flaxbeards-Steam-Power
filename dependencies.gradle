@@ -1,6 +1,8 @@
 dependencies {
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.mockito:mockito-core:4.11.0"
+    // GUI tests load Minecraft's client types without opening a display.
+    testRuntimeOnly("org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209") { transitive = false }
 
     // Optional integrations are available at compile time only.
     compileOnly rfg.deobf("curse.maven:industrial-craft-242638:2353971")
