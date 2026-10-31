@@ -447,7 +447,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
             }
             furnaceCookTime = 0;
         }
-        if (furnaceBurnTime > 0) furnaceBurnTime--;
+        if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 && furnaceBurnTime > 0) furnaceBurnTime--;
         if (previousBurn != furnaceBurnTime || previousCook != furnaceCookTime || previousHeat != heat) markDirty();
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1 && wasBurning != isBurning()) {
             wasBurning = isBurning();
@@ -486,6 +486,15 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
 
     public boolean hasPrimary() {
         return getPrimaryTileEntity() != null;
+    }
+
+    /** Remove this block's own storage, including contents left by an older multiblock. */
+    public ItemStack[] removeLocalInventory() {
+        if (worldObj == null || worldObj.isRemote) return new ItemStack[0];
+        ItemStack[] removed = furnaceItemStacks;
+        furnaceItemStacks = new ItemStack[2];
+        markDirty();
+        return removed;
     }
 
     @Override

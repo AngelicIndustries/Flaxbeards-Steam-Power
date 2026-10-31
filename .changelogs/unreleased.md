@@ -46,3 +46,5 @@
 * Keep flash-boiler capacity stable across chunk unloads, pause water and fuel consumption until the whole structure is loaded, and invalidate broken structures when missing members return.
 * Avoid loading chunks during flash-boiler formation, disassembly and explosion checks; safely handle missing tiles and disconnected steam transfers.
 * Prevent steam-machine save notifications from reloading adjacent chunks while retaining notifications for loaded neighbors.
+* Recover stored items when breaking an unformed flash boiler or a secondary with legacy contents, without duplicating the shared inventory.
+* Preserve unused burn time stored in secondary flash-boiler blocks until those contents can be recovered.

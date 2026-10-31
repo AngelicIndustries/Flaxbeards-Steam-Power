@@ -14,7 +14,6 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.IIcon;
 import net.minecraft.util.MathHelper;
@@ -67,54 +66,35 @@ public class BlockFlashBoiler extends BlockSteamTransporter {
         return new TileEntityFlashBoiler();
     }
 
+    @Override
     public void onBlockPreDestroy(World world, int x, int y, int z, int meta) {
         if (world.isRemote) return;
         super.onBlockPreDestroy(world, x, y, z, meta);
         TileEntity tile = world.getTileEntity(x, y, z);
         if (!(tile instanceof TileEntityFlashBoiler)) return;
         TileEntityFlashBoiler boiler = (TileEntityFlashBoiler) tile;
+        TileEntityFlashBoiler primary = boiler.getPrimaryTileEntity();
+        // Preserve the existing shared-inventory drops, and also recover this block's hidden local items.
+        if (primary != null && primary != boiler) dropInventory(world, x, y, z, primary.removeLocalInventory());
+        dropInventory(world, x, y, z, boiler.removeLocalInventory());
+        if (meta > 0) boiler.destroyMultiblock();
+    }
 
-        if (boiler != null) {
-            for (int i1 = 0; i1 < boiler.getSizeInventory(); ++i1) {
-                ItemStack itemstack = boiler.getStackInSlot(i1);
-
-                if (itemstack != null) {
-                    float f = this.rand.nextFloat() * 0.8F + 0.1F;
-                    float f1 = this.rand.nextFloat() * 0.8F + 0.1F;
-                    float f2 = this.rand.nextFloat() * 0.8F + 0.1F;
-
-                    while (itemstack.stackSize > 0) {
-                        int j1 = this.rand.nextInt(21) + 10;
-
-                        if (j1 > itemstack.stackSize) {
-                            j1 = itemstack.stackSize;
-                        }
-
-                        itemstack.stackSize -= j1;
-                        EntityItem entityitem = new EntityItem(world, (double) ((float) x + f), (double) ((float) y + f1), (double) ((float) z + f2), new ItemStack(itemstack.getItem(), j1, itemstack.getItemDamage()));
-
-                        if (itemstack.hasTagCompound()) {
-                            entityitem.getEntityItem().setTagCompound((NBTTagCompound) itemstack.getTagCompound().copy());
-                        }
-
-                        float f3 = 0.05F;
-                        entityitem.motionX = (double) ((float) this.rand.nextGaussian() * f3);
-                        entityitem.motionY = (double) ((float) this.rand.nextGaussian() * f3 + 0.2F);
-                        entityitem.motionZ = (double) ((float) this.rand.nextGaussian() * f3);
-                        world.spawnEntityInWorld(entityitem);
-                    }
-                }
-                boiler.setInventorySlotContents(i1, null);
-
+    private void dropInventory(World world, int x, int y, int z, ItemStack[] contents) {
+        for (ItemStack stack : contents) {
+            if (stack == null || stack.stackSize <= 0) continue;
+            float ox = rand.nextFloat() * 0.8F + 0.1F;
+            float oy = rand.nextFloat() * 0.8F + 0.1F;
+            float oz = rand.nextFloat() * 0.8F + 0.1F;
+            while (stack.stackSize > 0) {
+                ItemStack drop = stack.splitStack(Math.min(stack.stackSize, rand.nextInt(21) + 10));
+                EntityItem entity = new EntityItem(world, x + ox, y + oy, z + oz, drop);
+                entity.motionX = rand.nextGaussian() * 0.05F;
+                entity.motionY = rand.nextGaussian() * 0.05F + 0.2F;
+                entity.motionZ = rand.nextGaussian() * 0.05F;
+                world.spawnEntityInWorld(entity);
             }
-
-
         }
-
-        if (meta > 0) {
-            boiler.destroyMultiblock();
-        }
-
     }
 
     public void checkMultiblock(World world, int x, int y, int z, boolean isBreaking, int frontSide) {
