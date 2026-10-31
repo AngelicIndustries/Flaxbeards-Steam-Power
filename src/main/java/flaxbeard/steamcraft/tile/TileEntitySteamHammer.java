@@ -11,7 +11,7 @@ import flaxbeard.steamcraft.gui.ContainerSteamAnvil;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
-import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -20,7 +20,7 @@ import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraftforge.common.util.ForgeDirection;
 
-public class TileEntitySteamHammer extends SteamTransporterTileEntity implements IInventory, ISteamTransporter {
+public class TileEntitySteamHammer extends SteamTransporterTileEntity implements ISidedInventory, ISteamTransporter {
     public  int         hammerTicks      = 0;
     public  String      itemName         = "";
     public  int         cost             = 0;
@@ -62,7 +62,6 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
                 }
             } else {
                 hammerTicks = 0;
-                progress = 0;
             }
         } else {
             if (this.getStackInSlot(0) != null) {
@@ -74,50 +73,46 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
                 this.hadItem = false;
                 worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
             }
-            if (cost > 0 && progress < cost && hammerTicks == 355) {
-                progress++;
-            }
-            if (cost > 0 && progress < cost && this.getStackInSlot(2) != null) {
-                if (hammerTicks == 0) {
-                    if (this.getSteamShare() >= steamConsumption) {
-                        this.decrSteam(steamConsumption);
-                        if (!this.isWorking) {
-                            this.isWorking = true;
-                            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+            int previousProgress = progress;
+            int previousTicks = hammerTicks;
+            boolean previouslyWorking = isWorking;
+            if (cost > 0 && progress < cost && getStackInSlot(2) != null) {
+                if (hammerTicks == 0 && getSteamShare() < steamConsumption) {
+                    isWorking = false;
+                } else {
+                    // A nonzero phase is a stroke whose steam was already paid, including after reload.
+                    if (hammerTicks == 0) {
+                        decrSteam(steamConsumption);
+                    }
+                    isWorking = true;
+                    hammerTicks = (hammerTicks + 5) % 360;
+                    if (hammerTicks == 0) {
+                        progress++;
+                        if (progress >= cost) {
+                            isWorking = false;
                         }
-
-                    } else {
-                        if (this.isWorking) {
-                            this.isWorking = false;
-                            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
-                        }
-                        return;
                     }
-                }
-                hammerTicks = (hammerTicks + 5) % 360;
-                switch (hammerTicks) {
-                    case 15:
-                    case 40: {
-                        playHammerSound("random.anvil_land", Block.soundTypeAnvil.getVolume(),
-                          (float) (0.75 + (Math.random() * 0.1F)));
-                        break;
-                    }
-                    case 170: {
-                        playHammerSound("steamcraft:hiss", Block.soundTypeAnvil.getVolume(), 0.9F);
-                        break;
-                    }
-                    default: {
-                        break;
+                    switch (hammerTicks) {
+                        case 15:
+                        case 40:
+                            playHammerSound("random.anvil_land", Block.soundTypeAnvil.getVolume(), 0.8F);
+                            break;
+                        case 170:
+                            playHammerSound("steamcraft:hiss", Block.soundTypeAnvil.getVolume(), 0.9F);
+                            break;
+                        default:
+                            break;
                     }
                 }
             } else {
-                if (this.isWorking) {
-                    this.isWorking = false;
-                    this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
-                }
-                if (hammerTicks > 0) {
-                    hammerTicks = 0;
-                }
+                isWorking = false;
+                hammerTicks = 0;
+            }
+            if (progress != previousProgress || hammerTicks != previousTicks) {
+                markDirty();
+            }
+            if (progress != previousProgress || isWorking != previouslyWorking) {
+                worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
             }
         }
     }
@@ -163,6 +158,8 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
             if (this.inventory[par1].stackSize <= par2) {
                 itemstack = this.inventory[par1];
                 this.inventory[par1] = null;
+                invalidateInput(par1);
+                markDirty();
                 return itemstack;
             } else {
                 itemstack = this.inventory[par1].splitStack(par2);
@@ -171,6 +168,8 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
                     this.inventory[par1] = null;
                 }
 
+                invalidateInput(par1);
+                markDirty();
                 return itemstack;
             }
         } else {
@@ -183,6 +182,8 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
         if (this.inventory[par1] != null) {
             ItemStack itemstack = this.inventory[par1];
             this.inventory[par1] = null;
+            invalidateInput(par1);
+            markDirty();
             return itemstack;
         } else {
             return null;
@@ -191,10 +192,26 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
 
     @Override
     public void setInventorySlotContents(int par1, ItemStack par2ItemStack) {
+        boolean changed = !ItemStack.areItemStacksEqual(this.inventory[par1], par2ItemStack);
         this.inventory[par1] = par2ItemStack;
 
         if (par2ItemStack != null && par2ItemStack.stackSize > this.getInventoryStackLimit()) {
             par2ItemStack.stackSize = this.getInventoryStackLimit();
+        }
+        if (changed) {
+            invalidateInput(par1);
+        }
+        markDirty();
+    }
+
+    private void invalidateInput(int slot) {
+        if (slot < 2 && worldObj != null && !worldObj.isRemote) {
+            inventory[2] = null;
+            cost = 0;
+            progress = 0;
+            hammerTicks = 0;
+            isWorking = false;
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
         }
     }
 
@@ -229,8 +246,24 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
     }
 
     @Override
-    public boolean isItemValidForSlot(int par1, ItemStack par2ItemStack) {
-        return true;
+    public boolean isItemValidForSlot(int slot, ItemStack stack) {
+        return slot >= 0 && slot < 2;
+    }
+
+    @Override
+    public int[] getAccessibleSlotsFromSide(int side) {
+        // The result is a preview until the container consumes the recipe's inputs on pickup.
+        return new int[] {0, 1};
+    }
+
+    @Override
+    public boolean canInsertItem(int slot, ItemStack stack, int side) {
+        return isItemValidForSlot(slot, stack);
+    }
+
+    @Override
+    public boolean canExtractItem(int slot, ItemStack stack, int side) {
+        return slot >= 0 && slot < 2;
     }
 
     @Override
@@ -262,7 +295,7 @@ public class TileEntitySteamHammer extends SteamTransporterTileEntity implements
     @Override
     public void readFromNBT(NBTTagCompound par1NBTTagCompound) {
         super.readFromNBT(par1NBTTagCompound);
-        NBTTagList nbttaglist = (NBTTagList) par1NBTTagCompound.getTag("Items");
+        NBTTagList nbttaglist = par1NBTTagCompound.getTagList("Items", 10);
         this.inventory = new ItemStack[this.getSizeInventory()];
 
         for (int i = 0; i < nbttaglist.tagCount(); ++i) {

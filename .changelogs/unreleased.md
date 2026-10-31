@@ -17,3 +17,7 @@
 * Respect edit permissions when wrenching, preserve tile interaction results, and save changed machine settings.
 * Allow steam hammers to use anvil subclasses, including Et Futurum's replacement, with normal anvil wear.
 * Synchronize hammer name fields between open screens, allow clearing names, and prevent slot updates from sending unintended renames.
+* Preserve completed and paused hammer progress on clients, and save in-progress strokes without charging steam twice after reload.
+* Keep hammer result batches intact during right-click, drop-key and shift-click pickup, including nearly full inventories.
+* Use current repair-material counts when multiple players share a hammer, and reset work when its recipe or requested name changes.
+* Prevent sided automation from extracting hammer result previews, and invalidate previews when inputs change outside the GUI.

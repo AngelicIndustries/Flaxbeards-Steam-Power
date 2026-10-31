@@ -85,15 +85,18 @@ public class ContainerSteamAnvil extends Container {
 //                {
 //                    par1EntityPlayer.addExperienceLevel(-ContainerSteamAnvil.this.hammer.cost);
 //                }
+                // Another open container may have changed the inputs since this view last calculated them.
+                ContainerSteamAnvil.this.updateRepairOutput();
+                int materialsUsed = ContainerSteamAnvil.this.stackSizeToBeUsedInRepair;
                 hammer.progress = 0;
                 hammer.setInventorySlotContents(0, (ItemStack) null);
                 onCraftMatrixChanged(hammer);
 
-                if (ContainerSteamAnvil.this.stackSizeToBeUsedInRepair > 0) {
+                if (materialsUsed > 0) {
                     ItemStack itemstack1 = hammer.getStackInSlot(1);
 
-                    if (itemstack1 != null && itemstack1.stackSize > ContainerSteamAnvil.this.stackSizeToBeUsedInRepair) {
-                        itemstack1.stackSize -= ContainerSteamAnvil.this.stackSizeToBeUsedInRepair;
+                    if (itemstack1 != null && itemstack1.stackSize > materialsUsed) {
+                        itemstack1.stackSize -= materialsUsed;
                         hammer.setInventorySlotContents(1, itemstack1);
                         onCraftMatrixChanged(hammer);
                     } else {
@@ -156,8 +159,24 @@ public class ContainerSteamAnvil extends Container {
      * called when the Anvil Input Slot changes, calculates the new result and puts it in the output slot
      */
     public void updateRepairOutput() {
-        int oldCost = this.hammer.cost;
+        int oldCost = hammer.cost;
         ItemStack old = hammer.getStackInSlot(2);
+        old = old == null ? null : old.copy();
+        try {
+            calculateRepairOutput();
+        } finally {
+            if (!theWorld.isRemote && (oldCost != hammer.cost
+                || !ItemStack.areItemStacksEqual(old, hammer.getStackInSlot(2)))) {
+                hammer.progress = 0;
+                hammer.hammerTicks = 0;
+                hammer.markDirty();
+                theWorld.markBlockForUpdate(hammer.xCoord, hammer.yCoord, hammer.zCoord);
+            }
+        }
+    }
+
+    private void calculateRepairOutput() {
+        stackSizeToBeUsedInRepair = 0;
         ItemStack itemstack = hammer.getStackInSlot(0);
         this.hammer.cost = 0;
         int i = 0;
@@ -401,9 +420,6 @@ public class ContainerSteamAnvil extends Container {
             //onCraftMatrixChanged(hammer);
             this.detectAndSendChanges();
         }
-        if (!hammer.getStackInSlot(2).areItemStacksEqual(hammer.getStackInSlot(2), old) || !hammer.getStackInSlot(2).areItemStackTagsEqual(hammer.getStackInSlot(2), old)) {
-            hammer.progress = 0;
-        }
     }
 
     @Override
@@ -446,6 +462,41 @@ public class ContainerSteamAnvil extends Container {
             && par1EntityPlayer.getDistanceSq(this.field_82861_i + 0.5D, this.field_82858_j + 0.5D, this.field_82859_k + 0.5D) <= 64.0D;
     }
 
+    @Override
+    public ItemStack slotClick(int slotId, int button, int mode, EntityPlayer player) {
+        // Completing an anvil recipe consumes its inputs once, so its result is one indivisible batch.
+        if (slotId == 2 && button == 1 && mode == 0) {
+            button = 0;
+        } else if (slotId == 2 && button == 0 && mode == 4) {
+            button = 1;
+        }
+        return super.slotClick(slotId, button, mode, player);
+    }
+
+    @Override
+    public boolean func_94530_a(ItemStack stack, Slot slot) {
+        // Double-click collection may request only part of a stack.
+        return slot != getSlot(2) && super.func_94530_a(stack, slot);
+    }
+
+    private boolean canFitResult(ItemStack result) {
+        int remaining = result.stackSize;
+        for (int i = 3; i < 39; i++) {
+            Slot slot = getSlot(i);
+            ItemStack existing = slot.getStack();
+            if (existing == null) {
+                remaining -= Math.min(result.getMaxStackSize(), slot.getSlotStackLimit());
+            } else if (result.isStackable() && result.isItemEqual(existing)
+                && ItemStack.areItemStackTagsEqual(result, existing)) {
+                remaining -= Math.max(0, Math.min(result.getMaxStackSize(), slot.getSlotStackLimit()) - existing.stackSize);
+            }
+            if (remaining <= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Called when a player shift-clicks on a slot. You must override this or you will crash when someone does that.
      */
@@ -458,6 +509,9 @@ public class ContainerSteamAnvil extends Container {
             itemstack = itemstack1.copy();
 
             if (par2 == 2) {
+                if (!slot.canTakeStack(par1EntityPlayer) || !canFitResult(itemstack1)) {
+                    return null;
+                }
                 if (!this.mergeItemStack(itemstack1, 3, 39, true)) {
                     return null;
                 }
@@ -492,16 +546,6 @@ public class ContainerSteamAnvil extends Container {
      */
     public void updateItemName(String s) {
         hammer.itemName = s;
-
-        if (this.getSlot(2).getHasStack()) {
-            ItemStack itemstack = this.getSlot(2).getStack();
-
-            if (StringUtils.isBlank(s)) {
-                itemstack.func_135074_t();
-            } else {
-                itemstack.setStackDisplayName(hammer.itemName);
-            }
-        }
 
         this.updateRepairOutput();
     }
