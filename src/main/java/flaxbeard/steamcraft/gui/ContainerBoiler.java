@@ -2,169 +2,150 @@ package flaxbeard.steamcraft.gui;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
-import flaxbeard.steamcraft.misc.FluidHelper;
 import flaxbeard.steamcraft.tile.TileEntityBoiler;
+import flaxbeard.steamcraft.tile.TileEntityFlashBoiler;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.init.Items;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.ICrafting;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntityFurnace;
+import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.IFluidContainerItem;
 
 public class ContainerBoiler extends Container {
-    private TileEntityBoiler furnace;
-    private int lastCookTime;
-    private int lastBurnTime;
-    private int lastItemBurnTime;
-    private int lastPressure;
-    private int lastWater;
+    private static final int PLAYER_START = 2;
+    private static final int HOTBAR_START = 29;
+    private static final int PLAYER_END = 38;
+    private static final int PROPERTY_COUNT = 5;
+    private final TileEntityBoiler accessTile;
+    private final TileEntityBoiler furnace;
+    private final int[] lastValues = new int[PROPERTY_COUNT];
+    private final int[] receivedLow = new int[PROPERTY_COUNT];
 
-    public ContainerBoiler(InventoryPlayer par1InventoryPlayer, TileEntityBoiler par2TileEntityBoiler) {
-        this.furnace = par2TileEntityBoiler;
-
-        this.addSlotToContainer(new Slot(par2TileEntityBoiler, 1, 58, 55));
-        this.addSlotToContainer(new Slot(par2TileEntityBoiler, 0, 58, 32));
-        int i;
-
-        for (i = 0; i < 3; ++i) {
-            for (int j = 0; j < 9; ++j) {
-                this.addSlotToContainer(new Slot(par1InventoryPlayer, j + i * 9 + 9, 8 + j * 18, 84 + i * 18));
+    public ContainerBoiler(InventoryPlayer inventory, TileEntityBoiler boiler) {
+        accessTile = boiler;
+        furnace = resolveBoiler(boiler);
+        if (furnace == null) throw new IllegalArgumentException("Boiler has no available primary");
+        addSlotToContainer(new Slot(furnace, 1, 58, 55) {
+            @Override public boolean isItemValid(ItemStack stack) { return furnace.isItemValidForSlot(1, stack); }
+            @Override public int getSlotStackLimit() { return 1; }
+        });
+        addSlotToContainer(new Slot(furnace, 0, 58, 32) {
+            @Override public boolean isItemValid(ItemStack stack) { return furnace.isItemValidForSlot(0, stack); }
+        });
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 9; column++) {
+                addSlotToContainer(new Slot(inventory, column + row * 9 + 9, 8 + column * 18, 84 + row * 18));
             }
         }
-
-        for (i = 0; i < 9; ++i) {
-            this.addSlotToContainer(new Slot(par1InventoryPlayer, i, 8 + i * 18, 142));
+        for (int column = 0; column < 9; column++) {
+            addSlotToContainer(new Slot(inventory, column, 8 + column * 18, 142));
         }
+    }
+
+    public static TileEntityBoiler resolveBoiler(TileEntityBoiler boiler) {
+        if (boiler == null || boiler.isInvalid()) return null;
+        return boiler instanceof TileEntityFlashBoiler ? ((TileEntityFlashBoiler) boiler).getPrimaryTileEntity() : boiler;
+    }
+
+    public TileEntityBoiler getBoiler() { return furnace; }
+
+    private boolean isStructureValid() {
+        World world = accessTile.getWorldObj();
+        return world != null && !accessTile.isInvalid() && !furnace.isInvalid()
+            && world.blockExists(accessTile.xCoord, accessTile.yCoord, accessTile.zCoord)
+            && world.getTileEntity(accessTile.xCoord, accessTile.yCoord, accessTile.zCoord) == accessTile
+            && world.blockExists(furnace.xCoord, furnace.yCoord, furnace.zCoord)
+            && world.getTileEntity(furnace.xCoord, furnace.yCoord, furnace.zCoord) == furnace
+            && resolveBoiler(accessTile) == furnace;
+    }
+
+    private int[] values() {
+        return new int[]{furnace.furnaceCookTime, furnace.furnaceBurnTime, furnace.currentItemBurnTime,
+            furnace.getPressureAsInt(), furnace.getTank().getFluidAmount()};
+    }
+
+    private void sendValue(ICrafting listener, int id, int value) {
+        // Vanilla window properties carry signed shorts. Send both halves, low first.
+        listener.sendProgressBarUpdate(this, id, value & 0xffff);
+        listener.sendProgressBarUpdate(this, id + PROPERTY_COUNT, value >>> 16);
     }
 
     @Override
-    public void addCraftingToCrafters(ICrafting par1ICrafting) {
-        super.addCraftingToCrafters(par1ICrafting);
-        par1ICrafting.sendProgressBarUpdate(this, 0, this.furnace.furnaceCookTime);
-        par1ICrafting.sendProgressBarUpdate(this, 1, this.furnace.furnaceBurnTime);
-        par1ICrafting.sendProgressBarUpdate(this, 2, TileEntityBoiler.getItemBurnTime(null));
-        par1ICrafting.sendProgressBarUpdate(this, 3, (int) Math.floor((double) this.furnace.getPressure() * 1000));
+    public void addCraftingToCrafters(ICrafting listener) {
+        super.addCraftingToCrafters(listener);
+        if (!isStructureValid()) return;
+        int[] values = values();
+        for (int id = 0; id < PROPERTY_COUNT; id++) sendValue(listener, id, values[id]);
     }
 
-    /**
-     * Looks for changes made in the container, sends them to every listener.
-     */
     @Override
     public void detectAndSendChanges() {
+        if (!isStructureValid()) return;
         super.detectAndSendChanges();
-
-        for (int i = 0; i < this.crafters.size(); ++i) {
-            ICrafting icrafting = (ICrafting) this.crafters.get(i);
-
-            if (this.lastCookTime != this.furnace.furnaceCookTime) {
-                icrafting.sendProgressBarUpdate(this, 0, this.furnace.furnaceCookTime);
-            }
-
-            if (this.lastBurnTime != this.furnace.furnaceBurnTime) {
-                icrafting.sendProgressBarUpdate(this, 1, this.furnace.furnaceBurnTime);
-            }
-
-            if (this.lastItemBurnTime != this.furnace.currentItemBurnTime) {
-                icrafting.sendProgressBarUpdate(this, 2, this.furnace.currentItemBurnTime);
-            }
-
-            if (this.lastPressure != this.furnace.getPressureAsInt()) {
-                icrafting.sendProgressBarUpdate(this, 3, this.furnace.getPressureAsInt());
-            }
-
-            if (this.lastWater != this.furnace.getTank().getFluidAmount()) {
-                icrafting.sendProgressBarUpdate(this, 4, this.furnace.getTank().getFluidAmount());
+        int[] values = values();
+        for (Object crafter : crafters) {
+            for (int id = 0; id < PROPERTY_COUNT; id++) {
+                if (values[id] != lastValues[id]) sendValue((ICrafting) crafter, id, values[id]);
             }
         }
-
-        this.lastCookTime = this.furnace.furnaceCookTime;
-        this.lastBurnTime = this.furnace.furnaceBurnTime;
-        this.lastItemBurnTime = this.furnace.currentItemBurnTime;
-        this.lastPressure = this.furnace.getPressureAsInt();
-        this.lastWater = this.furnace.getTank().getFluidAmount();
+        System.arraycopy(values, 0, lastValues, 0, PROPERTY_COUNT);
     }
 
     @SideOnly(Side.CLIENT)
     @Override
-    public void updateProgressBar(int par1, int par2) {
-        if (par1 == 0) {
-            this.furnace.furnaceCookTime = par2;
+    public void updateProgressBar(int id, int value) {
+        if (id < 0 || id >= PROPERTY_COUNT * 2) return;
+        if (id < PROPERTY_COUNT) {
+            receivedLow[id] = value & 0xffff;
+            return;
         }
-
-        if (par1 == 1) {
-            this.furnace.furnaceBurnTime = par2;
-        }
-
-        if (par1 == 2) {
-            this.furnace.currentItemBurnTime = par2;
-        }
-        if (par1 == 3) {
-            this.furnace.pressure = (float) par2 / 1000F;
-        }
-        if (par1 == 4) {
-            // Apply authoritative display state without using server-only transfer methods.
-            this.furnace.getTank().setFluid(new FluidStack(FluidRegistry.WATER, Math.max(0, par2)));
-        }
-    }
-
-    @Override
-    public boolean canInteractWith(EntityPlayer par1EntityPlayer) {
-        return this.furnace.isUseableByPlayer(par1EntityPlayer);
-    }
-
-    /**
-     * Called when a player shift-clicks on a slot. You must override this or you will crash when someone does that.
-     */
-    @Override
-    public ItemStack transferStackInSlot(EntityPlayer par1EntityPlayer, int par2) {
-        ItemStack itemstack = null;
-        Slot slot = (Slot) this.inventorySlots.get(par2);
-
-        if (slot != null && slot.getHasStack()) {
-            ItemStack itemstack1 = slot.getStack();
-            itemstack = itemstack1.copy();
-
-            if (par2 == 2) {
-
-                return null;
-            } else if (par2 != 1 && par2 != 0) {
-                if (FluidHelper.itemStackIsWaterContainer(itemstack1)) {
-                    if (!this.mergeItemStack(itemstack1, 0, 1, false)) {
-                        return null;
-                    }
-                } else if (TileEntityFurnace.isItemFuel(itemstack1)) {
-                    if (!this.mergeItemStack(itemstack1, 1, 2, false)) {
-                        return null;
-                    }
-                } else if (par2 >= 2 && par2 < 30) {
-                    if (!this.mergeItemStack(itemstack1, 30, 38, false)) {
-                        return null;
-                    }
-                } else if (par2 >= 30 && par2 < 39 && !this.mergeItemStack(itemstack1, 3, 30, false)) {
-                    return null;
+        id -= PROPERTY_COUNT;
+        int combined = receivedLow[id] | ((value & 0xffff) << 16);
+        switch (id) {
+            case 0: furnace.furnaceCookTime = combined; break;
+            case 1: furnace.furnaceBurnTime = combined; break;
+            case 2: furnace.currentItemBurnTime = combined; break;
+            case 3: furnace.pressure = combined / 1000F; break;
+            case 4:
+                if (furnace.getTank() != null) {
+                    furnace.getTank().setFluid(new FluidStack(FluidRegistry.WATER, Math.max(0, combined)));
                 }
-            } else if (!this.mergeItemStack(itemstack1, 3, 38, false)) {
-                return null;
-            }
-
-            if (itemstack1.stackSize == 0) {
-                slot.putStack(null);
-            } else {
-                slot.onSlotChanged();
-            }
-
-            if (itemstack1.stackSize == itemstack.stackSize) {
-                return null;
-            }
-
-            slot.onPickupFromSlot(par1EntityPlayer, itemstack1);
+                break;
         }
+    }
 
-        return itemstack;
+    @Override
+    public boolean canInteractWith(EntityPlayer player) {
+        return isStructureValid() && accessTile.isUseableByPlayer(player);
+    }
+
+    @Override
+    public ItemStack transferStackInSlot(EntityPlayer player, int index) {
+        if (index < 0 || index >= PLAYER_END || !canInteractWith(player)) return null;
+        Slot slot = getSlot(index);
+        if (!slot.getHasStack()) return null;
+        ItemStack stack = slot.getStack();
+        ItemStack original = stack.copy();
+        if (index < PLAYER_START) {
+            if (!mergeItemStack(stack, PLAYER_START, PLAYER_END, true)) return null;
+        } else if (getSlot(0).isItemValid(stack)) {
+            // Vanilla mergeItemStack ignores custom slot limits for an empty slot.
+            if (getSlot(0).getHasStack()) return null;
+            getSlot(0).putStack(stack.splitStack(1));
+        } else if (getSlot(1).isItemValid(stack)) {
+            if (!mergeItemStack(stack, 1, 2, false)) return null;
+        } else if (index < HOTBAR_START) {
+            if (!mergeItemStack(stack, HOTBAR_START, PLAYER_END, false)) return null;
+        } else if (!mergeItemStack(stack, PLAYER_START, HOTBAR_START, false)) {
+            return null;
+        }
+        if (stack.stackSize == original.stackSize) return null;
+        if (stack.stackSize == 0) slot.putStack(null);
+        else slot.onSlotChanged();
+        slot.onPickupFromSlot(player, stack);
+        return original;
     }
 }

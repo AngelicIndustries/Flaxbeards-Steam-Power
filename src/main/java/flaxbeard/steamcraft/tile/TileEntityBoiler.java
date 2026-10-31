@@ -394,11 +394,8 @@ public class TileEntityBoiler extends SteamTransporterTileEntity implements IFlu
 
     @SideOnly(Side.CLIENT)
     public int getBurnTimeRemainingScaled(int p_145955_1_) {
-        if (this.currentItemBurnTime == 0) {
-            this.currentItemBurnTime = 200;
-        }
-
-        return this.furnaceBurnTime * p_145955_1_ / this.currentItemBurnTime;
+        if (currentItemBurnTime <= 0) return 0;
+        return (int) Math.max(0, Math.min(p_145955_1_, (long) furnaceBurnTime * p_145955_1_ / currentItemBurnTime));
     }
 
     public FluidTank getTank() {

@@ -92,9 +92,6 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     private static int[][][] validConfigs = new int[][][]{
             bbl, tbl, bbr, tbr, btl, ttl, btr, ttr
     };
-    public int furnaceCookTime;
-    public int furnaceBurnTime;
-    public int currentItemBurnTime;
     public int heat;
     private ItemStack[] furnaceItemStacks = new ItemStack[2];
     private String field_145958_o;
@@ -660,11 +657,7 @@ public class TileEntityFlashBoiler extends TileEntityBoiler implements IFluidHan
     @Override
     public int getBurnTimeRemainingScaled(int scale) {
         if (worldObj.getBlockMetadata(xCoord, yCoord, zCoord) == 1) {
-            if (this.currentItemBurnTime == 0) {
-                this.currentItemBurnTime = 200;
-            }
-
-            return this.furnaceBurnTime * scale / this.currentItemBurnTime;
+            return super.getBurnTimeRemainingScaled(scale);
         } else {
             return worldObj.getBlockMetadata(xCoord, yCoord, zCoord) > 0 && hasPrimary() ? getPrimaryTileEntity().getBurnTimeRemainingScaled(scale) : 0;
         }

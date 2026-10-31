@@ -19,7 +19,7 @@ public class SteamcraftGuiHandler implements IGuiHandler {
         int side = 5;
         switch (id) {
             case 0:
-                if (entity != null && entity instanceof TileEntityBoiler) {
+                if (entity instanceof TileEntityBoiler && ContainerBoiler.resolveBoiler((TileEntityBoiler) entity) != null) {
                     return new ContainerBoiler(player.inventory, (TileEntityBoiler) entity);
                 } else {
                     return null;
@@ -47,7 +47,7 @@ public class SteamcraftGuiHandler implements IGuiHandler {
         int side = 5;
         switch (id) {
             case 0:
-                if (entity != null && entity instanceof TileEntityBoiler) {
+                if (entity instanceof TileEntityBoiler && ContainerBoiler.resolveBoiler((TileEntityBoiler) entity) != null) {
                     return new GuiBoiler(player.inventory, (TileEntityBoiler) entity);
                 } else {
                     return null;

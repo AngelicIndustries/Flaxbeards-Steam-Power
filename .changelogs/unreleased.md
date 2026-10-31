@@ -38,3 +38,7 @@
 * Fill boilers and consume fuel on the server, and prevent flash boilers from spending water without a steam network.
 * Preserve buckets when their full contents do not fit, transfer only accepted amounts from refillable containers, and keep creative containers intact.
 * Return empty containers correctly when filling from held stacks, and safely handle flash-boiler input when its primary block is unavailable.
+* Synchronize complete boiler water and fuel values to every open screen without 16-bit truncation, including initial state and empty values.
+* Use the flash boiler's actual fuel counters and primary inventory when opening its screen from any formed block, and close access when the structure changes.
+* Validate boiler GUI inputs, limit the water slot to one container, and fix shift-click ranges across the main inventory and hotbar.
+* Avoid overflow when drawing long fuel burn times and leave authoritative fuel state unchanged while rendering.
