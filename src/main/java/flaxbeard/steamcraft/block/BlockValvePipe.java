@@ -37,8 +37,8 @@ public class BlockValvePipe extends BlockPipe {
     @Override
     public void onNeighborBlockChange(World world, int x, int y, int z, Block neighbor) {
         TileEntity tileEntity = world.getTileEntity(x, y, z);
-        if ((tileEntity != null && tileEntity instanceof TileEntityValvePipe) &&
-          neighbor.canProvidePower()) {
+        if (!world.isRemote && tileEntity instanceof TileEntityValvePipe &&
+          (neighbor.canProvidePower() || world.isBlockIndirectlyGettingPowered(x, y, z))) {
             TileEntityValvePipe valve = (TileEntityValvePipe) tileEntity;
             boolean flag = !world.isBlockIndirectlyGettingPowered(x, y, z);
             valve.updateRedstoneState(flag);
@@ -52,11 +52,10 @@ public class BlockValvePipe extends BlockPipe {
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float subX, float subY, float subZ) {
-        if (player.getHeldItem() == null || !(player.getHeldItem().getItem() instanceof ItemBlock)) {
-            TileEntityValvePipe tile = (TileEntityValvePipe) world.getTileEntity(x, y, z);
-            if (!tile.isTurning()) {
-                tile.setTurning();
-                //Steamcraft.log.debug(tile.getNetworkName());
+        if (!world.isRemote && (player.getHeldItem() == null || !(player.getHeldItem().getItem() instanceof ItemBlock))) {
+            TileEntity tile = world.getTileEntity(x, y, z);
+            if (tile instanceof TileEntityValvePipe && !((TileEntityValvePipe) tile).isTurning()) {
+                ((TileEntityValvePipe) tile).setTurning();
             }
         }
         return true;

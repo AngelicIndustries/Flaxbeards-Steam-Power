@@ -11,10 +11,13 @@ public abstract class BlockSteamTransporter extends BlockContainer {
     }
 
     public void onBlockPreDestroy(World world, int x, int y, int z, int meta) {
-        ISteamTransporter te = (ISteamTransporter) world.getTileEntity(x, y, z);
-        if (te != null && te.getNetwork() != null) {
-            te.getNetwork().split(te, true);
+        if (!world.isRemote && world.getTileEntity(x, y, z) instanceof ISteamTransporter) {
+            ISteamTransporter te = (ISteamTransporter) world.getTileEntity(x, y, z);
+            if (te.getNetwork() != null) {
+                te.getNetwork().split(te, true);
+            }
+            // A broken block vents its share; it must not rejoin before World removes the tile.
+            te.updateSteam(0);
         }
-        te.refresh();
     }
 }

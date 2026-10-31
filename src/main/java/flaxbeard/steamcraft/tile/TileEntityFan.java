@@ -196,12 +196,12 @@ public class TileEntityFan extends SteamTransporterTileEntity implements ISteamT
             worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
             return true;
         } else {
-            int steam = this.getSteamShare();
-            this.getNetwork().split(this, true);
+            if (this.getNetwork() != null) {
+                this.getNetwork().split(this, true);
+            }
             this.setDistributionDirections(new ForgeDirection[]{ForgeDirection.getOrientation(this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord)).getOpposite()});
 
             SteamNetwork.newOrJoin(this);
-            this.getNetwork().addSteam(steam);
             return true;
         }
     }

@@ -202,8 +202,9 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
     @Override
     public boolean onWrench(ItemStack stack, EntityPlayer player, World world,
                             int x, int y, int z, int side, float xO, float yO, float zO) {
-        int steam = this.getSteamShare();
-        this.getNetwork().split(this, true);
+        if (this.getNetwork() != null) {
+            this.getNetwork().split(this, true);
+        }
         ForgeDirection dir = myDir();
         ForgeDirection[] directions = new ForgeDirection[6];
         int i = 0;
@@ -215,7 +216,6 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
         }
         this.setDistributionDirections(directions);
         SteamNetwork.newOrJoin(this);
-        this.getNetwork().addSteam(steam);
         return true;
     }
 

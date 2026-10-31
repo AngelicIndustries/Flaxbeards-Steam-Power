@@ -558,8 +558,9 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
             this.worldObj.markBlockForUpdate(x, y, z);
             return true;
         } else {
-            int steam = this.getSteamShare();
-            this.getNetwork().split(this, true);
+            if (this.getNetwork() != null) {
+                this.getNetwork().split(this, true);
+            }
             ForgeDirection[] directions = new ForgeDirection[5];
             int i = 0;
             for (ForgeDirection direction : ForgeDirection.values()) {
@@ -570,7 +571,6 @@ public class TileEntitySmasher extends SteamTransporterTileEntity implements ISt
             }
             this.setDistributionDirections(directions);
             SteamNetwork.newOrJoin(this);
-            this.getNetwork().addSteam(steam);
             return true;
         }
     }

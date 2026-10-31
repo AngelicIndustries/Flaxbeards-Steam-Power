@@ -36,12 +36,20 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
      * @param flag True to open it, false to close it.
      */
     public void updateRedstoneState(boolean flag) {
+        if (worldObj.isRemote) {
+            return;
+        }
 		if (Config.enableRedstoneValvePipe) {
 			if (!this.isTurning()) {
                 this.setOpen(flag);
             }
 		}
-        redstoneState = flag;
+        if (redstoneState != flag) {
+            redstoneState = flag;
+            if (!worldObj.isRemote) {
+                markDirty();
+            }
+        }
     }
 
     @Override
@@ -104,7 +112,6 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
             }
             if (turnTicks >= 10) {
                 turning = false;
-                this.setOpen(!this.open);
                 turnTicks = 0;
             }
             if (!turning) {
@@ -151,7 +158,7 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
         } else {
             if (this.waitingOpen) {
                 //Steamcraft.log.debug("Waiting for open");
-                this.setOpen(!this.open);
+                this.setOpen(this.open);
             }
             if (turning != wasTurning) {
                 wasTurning = turning;
@@ -251,6 +258,9 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
     public void setTurning() {
         this.turning = true;
         this.turnTicks = 0;
+        if (!worldObj.isRemote) {
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        }
     }
 
     public boolean isOpen() {
@@ -258,32 +268,19 @@ public class TileEntityValvePipe extends TileEntitySteamPipe {
     }
 
     private void setOpen(boolean open) {
+        boolean changed = this.open != open;
         this.open = open;
-        boolean changed = true;
         if (!worldObj.isRemote) {
-            if (open) {
-                //Steamcraft.log.debug("Joining");
-                if (SteamNetworkRegistry.getInstance().isInitialized(this.getDimension())) {
-                    SteamNetwork.newOrJoin(this);
-                } else {
-                    changed = false;
-                    this.waitingOpen = true;
-                }
-            } else {
-                //Steamcraft.log.debug("Splitting");
-                if (this.getNetwork() != null) {
-                    this.getNetwork().split(this, true);
-                } else {
-                    changed = false;
-                    this.waitingOpen = true;
-                }
+            waitingOpen = open && !SteamNetworkRegistry.getInstance().isInitialized(getDimension());
+            if (open && !waitingOpen) {
+                SteamNetwork.newOrJoin(this);
+            } else if (!open && getNetwork() != null) {
+                getNetwork().split(this, true);
             }
-        }
-        if (!changed) {
-            this.open = !open;
-        } else {
-            this.waitingOpen = false;
-            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+            if (changed) {
+                markDirty();
+                worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+            }
         }
     }
 

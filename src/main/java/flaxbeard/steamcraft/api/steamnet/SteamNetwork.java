@@ -56,6 +56,10 @@ public class SteamNetwork {
 
     public synchronized void unloadTransporters(HashSet<ISteamTransporter> departing) {
         // ChunkEvent.Unload runs before the chunk is written to disk.
+        rebuildNetworks(departing);
+    }
+
+    private void rebuildNetworks(HashSet<ISteamTransporter> departing) {
         ArrayList<ISteamTransporter> remaining = new ArrayList<>();
         for (ISteamTransporter member : transporters.values()) {
             if (member.getNetwork() == this) {
@@ -76,7 +80,7 @@ public class SteamNetwork {
         steam = 0;
         capacity = 0;
         savedShares = null;
-        // Rejoin only the surviving loaded tiles, separating components across the unloaded chunk.
+        // Rejoin only surviving loaded members, using their current connection sides.
         for (ISteamTransporter member : remaining) {
             TileEntity tile = getLoadedTile(member.getWorld(), member.getCoords().x, member.getCoords().y, member.getCoords().z);
             if (tile == member && !tile.isInvalid()) {
@@ -108,9 +112,12 @@ public class SteamNetwork {
         }
         HashSet<ISteamTransporter> others = getNeighboringTransporters(trans);
         HashSet<SteamNetwork> nets = new HashSet<>();
+        if (trans.getNetwork() != null && trans.getNetwork().contains(trans)) {
+            nets.add(trans.getNetwork());
+        }
         SteamNetwork theNetwork = null;
         boolean hasJoinedNetwork = false;
-        if (others.size() > 0) {
+        if (!others.isEmpty() || !nets.isEmpty()) {
             for (ISteamTransporter t : others) {
                 //Steamcraft.log.debug("Checking other!");
                 if (!isClosedValvePipe(t)) {
@@ -158,12 +165,15 @@ public class SteamNetwork {
         HashSet<ISteamTransporter> out = new HashSet<>();
         Coord4 transCoords = trans.getCoords();
         for (ForgeDirection d : trans.getConnectionSides()) {
+            if (d == ForgeDirection.UNKNOWN || !trans.doesConnect(d)) {
+                continue;
+            }
             TileEntity te = getLoadedTile(trans.getWorld(), transCoords.x + d.offsetX, transCoords.y + d.offsetY, transCoords.z + d.offsetZ);
             if (te instanceof ISteamTransporter && !te.isInvalid()) {
                 if (te != trans) {
                     boolean isNeighbor = false;
                     ISteamTransporter t = (ISteamTransporter) te;
-                    if (t.getConnectionSides().contains(d.getOpposite())) {
+                    if (t.getConnectionSides().contains(d.getOpposite()) && t.doesConnect(d.getOpposite())) {
                         out.add(t);
                         if (t instanceof TileEntitySteamPipe) {
                             //slog.debug("Is original pipe: "+((TileEntitySteamPipe)t).isOriginalPipe);
@@ -352,79 +362,18 @@ public class SteamNetwork {
         }
     }
 
+    /** Rebuild changed connections, optionally detaching a member with its exact saved share. */
     public synchronized int split(ISteamTransporter split, boolean removeCapacity) {
-        savedShares = null;
-        //////Steamcraft.log.debug("Splitting network: "+ this.name);
-        int steamRemoved = 0;
-        if (removeCapacity && this.steam >= split.getCapacity() * this.getPressure()) {
-            //////Steamcraft.log.debug("Subtracting "+(split.getCapacity() * this.getPressure() )+ " from the network;");
-            steamRemoved = (int) Math.floor((double) split.getCapacity() * (double) this.getPressure());
-            this.steam -= steamRemoved;
-            this.capacity -= split.getCapacity();
-
+        if (split == null || split.getNetwork() != this || !contains(split)) {
+            return 0;
         }
-        for (ISteamTransporter trans : this.transporters.values()) {
-            trans.updateSteam((int) (trans.getCapacity() * this.getPressure()));
+        int removed = removeCapacity ? getSavedSteam(split) : 0;
+        HashSet<ISteamTransporter> departing = new HashSet<>();
+        if (removeCapacity) {
+            departing.add(split);
         }
-        //////Steamcraft.log.debug("Subtracting "+split.getCapacity() + " capacity from the network");
-
-        //World world = split.getWorldObj();
-        //Tuple3<Integer, Integer, Integer> coords = split.getCoords();
-        //int x = coords.first, y= coords.second, z=coords.third;
-        //HashSet<ForgeDirection> dirs = split.getConnectionSides();
-        HashSet<SteamNetwork> newNets = new HashSet<>();
-        boolean hasrun = false;
-        for (ISteamTransporter trans : getNeighboringTransporters(split)) {
-            if (!isClosedValvePipe(trans)) {
-                boolean isInNetwork = false;
-                if (newNets.size() > 0) {
-                    //log.debug("size: "+newNets.size());
-                    for (SteamNetwork net : newNets) {
-                        if (net.contains(trans)) {
-                            ////Steamcraft.log.debug("In network");
-                            isInNetwork = true;
-                            break;
-                        }
-                    }
-                }
-                if (!isInNetwork) {
-                    //log.debug("Not in network!");
-                    SteamNetwork net = SteamNetworkRegistry.getInstance().getNewNetwork();
-                    //////Steamcraft.log.debug("Crawling!");
-                    ISteamTransporter ignore = null;
-                    if (removeCapacity) {
-                        ignore = split;
-                    }
-
-                    net.buildFromTransporter(trans, net, ignore);
-                    newNets.add(net);
-                    //////Steamcraft.log.debug(net.getSize());
-                    hasrun = true;
-                }
-            }
-
-        }
-        if (newNets.size() > 0) {
-            //log.debug("More than one new network found");
-            ////Steamcraft.log.debug("old s:"+this.steam+" p:"+this.getPressure() + " c:"+this.capacity);
-            for (SteamNetwork net : newNets) {
-                int steamShare = (int) Math.floor((double) (net.capacity * this.getPressure()));
-                //log.debug("new s:"+steamShare+" c:"+net.capacity+" n: "+net.getName());
-                //net.addSteam(steamShare);
-                SteamNetworkRegistry.getInstance().add(net);
-                net.shouldRefresh();
-            }
-
-        /*
-        } else {
-            // There's nothing left.
-            ////Steamcraft.log.debug("No networks around");
-        */
-        }
-        //log.debug("New networks: "+newNets);
-
-        this.shouldRefresh();
-        return steamRemoved;
+        rebuildNetworks(departing);
+        return removed;
     }
 
     public synchronized void buildFromTransporter(ISteamTransporter trans, SteamNetwork target, ISteamTransporter ignore) {

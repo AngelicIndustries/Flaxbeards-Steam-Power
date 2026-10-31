@@ -25,3 +25,7 @@
 * Save current steam shares without losing integer remainders, and merge live network totals instead of stale tile snapshots.
 * Avoid loading neighboring chunks during steam-network, pipe, valve and gauge checks.
 * Tick steam networks once per server tick, handle network removal safely, and clear network references when worlds unload or the server stops.
+* Preserve exact steam balances when splitting and reconnecting networks, and retire obsolete network membership immediately.
+* Prevent machine rotation from adding steam twice, and make repeated network joins safe.
+* Save valve changes immediately, respect the handle-side connection, and fix redstone-source placement and server-authoritative valve operation.
+* Detach broken transporters without rejoining them, vent only their stored share, and handle missing tiles safely.

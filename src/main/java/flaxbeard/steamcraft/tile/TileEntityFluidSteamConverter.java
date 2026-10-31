@@ -109,12 +109,12 @@ public class TileEntityFluidSteamConverter extends SteamTransporterTileEntity im
         if (player.isSneaking()) {
             pushing = !pushing;
         } else {
-            int steam = this.getSteamShare();
-            this.getNetwork().split(this, true);
+            if (this.getNetwork() != null) {
+                this.getNetwork().split(this, true);
+            }
             this.setDistributionDirections(new ForgeDirection[]{ForgeDirection.getOrientation(this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord)).getOpposite()});
 
             SteamNetwork.newOrJoin(this);
-            this.getNetwork().addSteam(steam);
         }
         return false;
     }
