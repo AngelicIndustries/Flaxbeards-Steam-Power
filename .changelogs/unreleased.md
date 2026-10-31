@@ -12,3 +12,6 @@
 * Bound pending client requests and reject invalid pipe sides and item names.
 * Save camouflage and pipe-connection changes, and clear inventory slots when their last camouflage block is consumed.
 * Preserve the steam hammer's requested item name across saves and synchronize it to clients.
+* Run crucible dunking and tipping on the server, fix wildcard dunking recipes, and save liquid changes immediately.
+* Consume steam for crucible heating only when an item can actually melt.
+* Respect edit permissions when wrenching, preserve tile interaction results, and save changed machine settings.

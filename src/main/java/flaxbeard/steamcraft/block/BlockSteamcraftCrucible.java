@@ -98,38 +98,44 @@ public class BlockSteamcraftCrucible extends BlockContainer implements IWrenchab
 
     @Override
     public void onEntityCollidedWithBlock(World world, int x, int y, int z, Entity entity) {
-        if (entity instanceof EntityItem) {
-            EntityItem item = (EntityItem) entity;
-            if (isCrucibleHeated(world, x, y, z)) {
-                MutablePair output;
-                if (SteamcraftRegistry.liquidRecipes.containsKey(MutablePair.of(item.getEntityItem().getItem(), item.getEntityItem().getItemDamage()))) {
-                    output = SteamcraftRegistry.liquidRecipes.get(MutablePair.of(item.getEntityItem().getItem(), item.getEntityItem().getItemDamage()));
-                } else if (SteamcraftRegistry.liquidRecipes.containsKey(MutablePair.of(item.getEntityItem().getItem(), -1))) {
-                    output = SteamcraftRegistry.liquidRecipes.get(MutablePair.of(item.getEntityItem().getItem(), -1));
-
-                } else {
-                    return;
-                }
-                TileEntityCrucible crucible = (TileEntityCrucible) world.getTileEntity(x, y, z);
-                int amount = (Integer) output.right;
-                if (crucible != null){
-                    if (item.delayBeforeCanPickup > 2){
-                        item.delayBeforeCanPickup = 2;
-                    } else if (item.delayBeforeCanPickup <= 1) {
-                        ItemStack stack = item.getEntityItem();
-                        ItemStack out = crucible.fillWith(stack, amount, output);
-                        if (crucible.getFill() + amount <= 90) {
-                            item.delayBeforeCanPickup = 2;
-                        }
-
-                        if (out.stackSize <= 0) {
-                            entity.setDead();
-                        } else {
-                            item.setEntityItemStack(out);
-                        }
-                    }
-                }
-            }
+        if (world.isRemote || !(entity instanceof EntityItem)) {
+            return;
+        }
+        EntityItem item = (EntityItem) entity;
+        ItemStack stack = item.getEntityItem();
+        if (stack == null || stack.stackSize <= 0) {
+            return;
+        }
+        MutablePair<CrucibleLiquid, Integer> output = SteamcraftRegistry.liquidRecipes.get(
+            MutablePair.of(stack.getItem(), stack.getItemDamage()));
+        if (output == null) {
+            output = SteamcraftRegistry.liquidRecipes.get(MutablePair.of(stack.getItem(), -1));
+        }
+        TileEntity tile = world.getTileEntity(x, y, z);
+        if (output == null || !(tile instanceof TileEntityCrucible)) {
+            return;
+        }
+        TileEntityCrucible crucible = (TileEntityCrucible) tile;
+        int amount = output.right;
+        if (!crucible.hasUpdated || crucible.getFill() + amount > 90) {
+            return;
+        }
+        if (item.delayBeforeCanPickup > 2) {
+            item.delayBeforeCanPickup = 2;
+            return;
+        }
+        // A steam heater is charged by this check, so only call it for a melt that can proceed.
+        if (item.delayBeforeCanPickup > 1 || !isCrucibleHeated(world, x, y, z)) {
+            return;
+        }
+        ItemStack remaining = crucible.fillWith(stack, amount, output);
+        if (crucible.getFill() + amount <= 90) {
+            item.delayBeforeCanPickup = 2;
+        }
+        if (remaining.stackSize <= 0) {
+            item.setDead();
+        } else {
+            item.setEntityItemStack(remaining);
         }
     }
 
@@ -174,62 +180,46 @@ public class BlockSteamcraftCrucible extends BlockContainer implements IWrenchab
 
     @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float subX, float subY, float subZ) {
-        if (!player.isSneaking() && player.getHeldItem() == null) {
-            TileEntityCrucible tile = (TileEntityCrucible) world.getTileEntity(x, y, z);
+        if (world.isRemote) {
+            return true;
+        }
+        TileEntity tileEntity = world.getTileEntity(x, y, z);
+        if (!(tileEntity instanceof TileEntityCrucible)) {
+            return true;
+        }
+        TileEntityCrucible tile = (TileEntityCrucible) tileEntity;
+        ItemStack held = player.getHeldItem();
+        if (!player.isSneaking() && held == null) {
             if (!tile.isTipping()) {
                 tile.setTipping();
                 tile.needsUpdate = true;
+                tile.markDirty();
             }
-        } else if (player.getHeldItem() != null) {
-            TileEntityCrucible tile = (TileEntityCrucible) world.getTileEntity(x, y, z);
+        } else if (held != null && held.stackSize > 0) {
             for (CrucibleLiquid liquid : tile.contents) {
-                Tuple3 tuple = new Tuple3(player.getHeldItem().getItem(), player.getHeldItem().getItemDamage(), liquid);
-                if (SteamcraftRegistry.dunkRecipes.containsKey(tuple)) {
-                    int needed = SteamcraftRegistry.dunkRecipes.get(tuple).left;
-                    ItemStack result = SteamcraftRegistry.dunkRecipes.get(tuple).right.copy();
-                    if (tile.number.get(liquid) >= needed) {
-                        player.inventory.decrStackSize(player.inventory.currentItem, 1);
-                        int currNum = tile.number.get(liquid);
-                        currNum -= needed;
-                        if (currNum == 0) {
-                            tile.contents.remove(liquid);
-                        }
-                        tile.number.remove(liquid);
-                        tile.number.put(liquid, currNum);
-                        if (!player.inventory.addItemStackToInventory(result)) {
-                            if (!player.worldObj.isRemote) {
-                                player.entityDropItem(result, 0.0F);
-                            }
-                        }
-                        tile.needsUpdate = true;
-
-                        break;
-                    }
-                } else {
-                    Tuple3 tuple1 = new Tuple3(player.getHeldItem(), -1, liquid);
-                    if (SteamcraftRegistry.dunkRecipes.containsKey(tuple1)) {
-                        int needed = SteamcraftRegistry.dunkRecipes.get(tuple1).left;
-                        ItemStack result = SteamcraftRegistry.dunkRecipes.get(tuple1).right.copy();
-                        if (tile.number.get(liquid) >= needed) {
-                            player.inventory.decrStackSize(player.inventory.currentItem, 1);
-                            int currNum = tile.number.get(liquid);
-                            currNum -= needed;
-                            if (currNum == 0) {
-                                tile.contents.remove(liquid);
-                            }
-                            tile.number.remove(liquid);
-                            tile.number.put(liquid, currNum);
-                            if (!player.inventory.addItemStackToInventory(result)) {
-                                if (!player.worldObj.isRemote) {
-                                    player.entityDropItem(result, 0.0F);
-                                }
-                            }
-                            tile.needsUpdate = true;
-
-                            break;
-                        }
-                    }
+                MutablePair<Integer, ItemStack> recipe = SteamcraftRegistry.dunkRecipes.get(
+                    new Tuple3(held.getItem(), held.getItemDamage(), liquid));
+                if (recipe == null) {
+                    recipe = SteamcraftRegistry.dunkRecipes.get(new Tuple3(held.getItem(), -1, liquid));
                 }
+                if (recipe == null || tile.number.get(liquid) < recipe.left) {
+                    continue;
+                }
+                ItemStack result = recipe.right.copy();
+                player.inventory.decrStackSize(player.inventory.currentItem, 1);
+                int remaining = tile.number.get(liquid) - recipe.left;
+                if (remaining == 0) {
+                    tile.contents.remove(liquid);
+                    tile.number.remove(liquid);
+                } else {
+                    tile.number.put(liquid, remaining);
+                }
+                if (!player.inventory.addItemStackToInventory(result)) {
+                    player.entityDropItem(result, 0.0F);
+                }
+                tile.needsUpdate = true;
+                tile.markDirty();
+                return true;
             }
         }
         return true;
