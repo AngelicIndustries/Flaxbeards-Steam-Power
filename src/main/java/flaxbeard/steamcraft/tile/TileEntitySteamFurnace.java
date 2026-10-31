@@ -83,74 +83,49 @@ public class TileEntitySteamFurnace extends TileEntityFurnace {
         }
     }
 
+    static ItemStack getSteamingResult(ItemStack input) {
+        if (input == null || input.getItem() == null || input.stackSize <= 0) return null;
+        ItemStack cooked = FurnaceRecipes.smelting().getSmeltingResult(input);
+        if (cooked == null || cooked.getItem() == null || cooked.stackSize <= 0) return null;
+        MutablePair<Item, Integer> conversion = SteamcraftRegistry.steamingRecipes.get(
+            MutablePair.of(cooked.getItem(), cooked.getItemDamage()));
+        if (conversion == null) conversion = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(cooked.getItem(), -1));
+        if (conversion == null) return cooked.copy();
+        if (conversion.left == null) return null;
+        return new ItemStack(conversion.left, 1, conversion.right == -1 ? 0 : conversion.right);
+    }
+
+    static boolean canSmelt(TileEntityFurnace furnace) {
+        if (furnace == null) return false;
+        ItemStack result = getSteamingResult(furnace.getStackInSlot(0));
+        if (result == null) return false;
+        ItemStack output = furnace.getStackInSlot(2);
+        int limit = Math.min(furnace.getInventoryStackLimit(), result.getMaxStackSize());
+        if (output == null || output.stackSize <= 0) return result.stackSize <= limit;
+        return output.isItemEqual(result) && ItemStack.areItemStackTagsEqual(output, result)
+            && result.stackSize <= limit - output.stackSize;
+    }
+
     public boolean canSmelt() {
-        if (this.getStackInSlot(0) == null) {
-            return false;
-        } else {
-            ItemStack itemstack = FurnaceRecipes.smelting().getSmeltingResult(this.getStackInSlot(0));
-            if (itemstack == null) return false;
-            if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage()))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 1, meta);
-                }
-            } else if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), -1))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 1, meta);
-                }
-            }
-            if (this.getStackInSlot(2) == null) return true;
-            if (!this.getStackInSlot(2).isItemEqual(itemstack)) return false;
-            int result = getStackInSlot(2).stackSize + itemstack.stackSize;
-            return result <= getInventoryStackLimit() && result <= this.getStackInSlot(2).getMaxStackSize(); //Forge BugFix: Make it respect stack sizes properly.
-        }
-        //return true;
+        return canSmelt(this);
     }
 
     @Override
     public void smeltItem() {
-        if (this.canSmelt()) {
-            ItemStack itemstack = FurnaceRecipes.smelting().getSmeltingResult(this.getStackInSlot(0));
-            if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage()))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 1, meta);
-                }
-            } else if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), -1))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 1, meta);
-                }
-            }
-            if (this.getStackInSlot(2) == null) {
-                this.setInventorySlotContents(2, itemstack.copy());
-            } else if (this.getStackInSlot(2).getItem() == itemstack.getItem()) {
-                ItemStack copy = this.getStackInSlot(2).copy();
-                copy.stackSize += itemstack.stackSize;
-                this.setInventorySlotContents(2, copy);
-            }
-
-            ItemStack copy = this.getStackInSlot(0).copy();
-            copy.stackSize--;
-            this.setInventorySlotContents(0, copy);
-
-            if (this.getStackInSlot(0).stackSize <= 0) {
-                this.setInventorySlotContents(0, null);
-            }
+        if (worldObj == null || worldObj.isRemote || isInvalid() || !worldObj.blockExists(xCoord, yCoord, zCoord)
+            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this || !canSmelt()) return;
+        ItemStack result = getSteamingResult(getStackInSlot(0));
+        ItemStack output = getStackInSlot(2);
+        if (output == null || output.stackSize <= 0) {
+            setInventorySlotContents(2, result);
+        } else {
+            ItemStack combined = output.copy();
+            combined.stackSize += result.stackSize;
+            setInventorySlotContents(2, combined);
         }
+        ItemStack input = getStackInSlot(0).copy();
+        input.stackSize--;
+        setInventorySlotContents(0, input.stackSize > 0 ? input : null);
+        markDirty();
     }
-
 }

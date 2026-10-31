@@ -3,21 +3,17 @@ package flaxbeard.steamcraft.tile;
 import flaxbeard.steamcraft.Config;
 import flaxbeard.steamcraft.api.ISteamTransporter;
 import flaxbeard.steamcraft.api.IWrenchable;
-import flaxbeard.steamcraft.api.SteamcraftRegistry;
 import flaxbeard.steamcraft.api.steamnet.SteamNetwork;
 import flaxbeard.steamcraft.api.tile.SteamTransporterTileEntity;
 
 import net.minecraft.block.BlockFurnace;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntityFurnace;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
-import org.apache.commons.lang3.tuple.MutablePair;
 
 import java.util.ArrayList;
 
@@ -141,34 +137,7 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
     }
 
     public boolean canSmelt(TileEntityFurnace furnace) {
-        if (furnace.getStackInSlot(0) == null) {
-            return false;
-        } else {
-            ItemStack itemstack = FurnaceRecipes.smelting().getSmeltingResult(furnace.getStackInSlot(0));
-            if (itemstack == null) return false;
-            if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), -1))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), -1)).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 0, meta);
-                }
-            }
-            if (SteamcraftRegistry.steamingRecipes.containsKey(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage()))) {
-                int meta = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).right;
-                Item item = SteamcraftRegistry.steamingRecipes.get(MutablePair.of(itemstack.getItem(), itemstack.getItemDamage())).left;
-                if (meta == -1) {
-                    itemstack = new ItemStack(item);
-                } else {
-                    itemstack = new ItemStack(item, 0, meta);
-                }
-            }
-            if (furnace.getStackInSlot(2) == null) return true;
-            if (!furnace.getStackInSlot(2).isItemEqual(itemstack)) return false;
-            int result = furnace.getStackInSlot(2).stackSize + itemstack.stackSize;
-            return result <= furnace.getInventoryStackLimit() && result <= furnace.getStackInSlot(2).getMaxStackSize(); //Forge BugFix: Make it respect stack sizes properly.
-        }
+        return TileEntitySteamFurnace.canSmelt(furnace);
     }
 
     public ForgeDirection myDir() {

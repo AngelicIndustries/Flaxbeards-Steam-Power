@@ -59,3 +59,5 @@
 * Stop replaced furnaces from processing stale inventory, and apply heater burn time to the installed furnace.
 * Keep heater/furnace processing on the server, pause across unavailable neighboring chunks, and save changed furnace counters.
 * Remove duplicate heater registration and exclude the heating face and unknown direction from heater steam connections.
+* Use the same steaming recipe and output-capacity checks in heaters and furnaces, prefer exact recipes over wildcards, and prevent chained conversions or merging incompatible item tags.
+* Reject empty steaming inputs and oversized results, and save direct smelting changes without modifying recipe templates.
