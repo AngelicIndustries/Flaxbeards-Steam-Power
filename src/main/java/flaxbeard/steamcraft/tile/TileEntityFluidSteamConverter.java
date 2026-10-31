@@ -1,12 +1,10 @@
 package flaxbeard.steamcraft.tile;
 
-import cpw.mods.fml.common.Loader;
 import flaxbeard.steamcraft.Config;
 import flaxbeard.steamcraft.api.ISteamTransporter;
 import flaxbeard.steamcraft.api.IWrenchable;
 import flaxbeard.steamcraft.api.steamnet.SteamNetwork;
 import flaxbeard.steamcraft.api.tile.SteamTransporterTileEntity;
-import flaxbeard.steamcraft.integration.CrossMod;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -18,17 +16,23 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.*;
 
-import static org.apache.commons.lang3.ArrayUtils.add;
-
 public class TileEntityFluidSteamConverter extends SteamTransporterTileEntity implements ISteamTransporter, IFluidHandler, IWrenchable {
     public int runTicks = 0;
-    private FluidTank dummyTank;
-    private FluidTank ic2DummyTank;
-    private boolean isInitialized = false;
     private boolean lastRunning = false;
 
     public boolean pushing = false; // Indicates that converter is pushing steam actively.
     private static final int PUSH_MAX = 250; // in mb a tick
+
+    public TileEntityFluidSteamConverter() {
+        // Do not join neighbors through arbitrary faces before the first server tick.
+        super(new ForgeDirection[0]);
+    }
+
+    @Override
+    public void refresh() {
+        setDistributionDirections(new ForgeDirection[]{fluidSide().getOpposite()});
+        super.refresh();
+    }
 
     @Override
     public Packet getDescriptionPacket() {
@@ -69,43 +73,42 @@ public class TileEntityFluidSteamConverter extends SteamTransporterTileEntity im
         if (runTicks > 0) {
             runTicks--;
         }
-        if (runTicks > 0 != lastRunning) {
-            this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        if (runTicks > 0 != lastRunning && !worldObj.isRemote) {
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
         }
         lastRunning = runTicks > 0;
+        super.updateEntity();
 
-        if (!this.isInitialized) {
-            this.setDistributionDirections(new ForgeDirection[]{ForgeDirection.getOrientation(this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord)).getOpposite()});
+        if (!pushing || !canTransfer()) {
+            return;
         }
-
-        if (pushing) {
-            int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-            ForgeDirection dir = ForgeDirection.getOrientation(meta);
-
-            TileEntity tileEntity = this.worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
-            SteamNetwork steamNetwork = this.getNetwork();
-            if(tileEntity != null && tileEntity instanceof IFluidHandler && steamNetwork != null) {
-                //To make for some interesting feedback systems, active push amount is based on current network pressure
-                //This could be considered for non pushing systems, but there's no guarantee of consistency of the pull rate
-                //from different mods, so something complicated would have to be done to audit that behaviour.
-                //todo: external config for converter behaviour?
-                //todo: apply limiting mechanism to non-pushing state?
-
-                IFluidHandler tank = (IFluidHandler) tileEntity;
-                int maxDrain = (int)(PUSH_MAX * steamNetwork.getPressure());
-                if (maxDrain > 0) {
-                    FluidStack avail = drain(dir, maxDrain, false);
-                    int taken = tank.fill(dir.getOpposite(), avail, true);
-                    steamNetwork.decrSteam(taken);
+        ForgeDirection dir = fluidSide();
+        if (dir == ForgeDirection.UNKNOWN) {
+            return;
+        }
+        TileEntity neighbor = SteamNetwork.getLoadedTile(worldObj,
+            xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
+        if (neighbor instanceof IFluidHandler && !neighbor.isInvalid()) {
+            // Preserve pressure-based output, including the existing overpressure behavior.
+            int maxDrain = (int) (PUSH_MAX * getNetwork().getPressure());
+            FluidStack available = drain(dir, maxDrain, false);
+            if (available != null) {
+                int offered = available.amount;
+                int accepted = ((IFluidHandler) neighbor).fill(dir.getOpposite(), available, true);
+                int transferred = Math.max(0, Math.min(offered, accepted));
+                if (transferred > 0) {
+                    decrSteam(transferred);
+                    transferredSteam();
                 }
             }
         }
-
-        super.updateEntity();
     }
 
     @Override
     public boolean onWrench(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side, float xO, float yO, float zO) {
+        if (world.isRemote) {
+            return false;
+        }
         if (player.isSneaking()) {
             pushing = !pushing;
         } else {
@@ -116,142 +119,107 @@ public class TileEntityFluidSteamConverter extends SteamTransporterTileEntity im
 
             SteamNetwork.newOrJoin(this);
         }
-        return false;
+        markDirty();
+        worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        return true;
     }
 
     @Override
     public int fill(ForgeDirection from, FluidStack resource, boolean doFill) {
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-
-        if (from.ordinal() != meta) {
+        if (!canTransfer() || resource == null || resource.amount <= 0 || !canFill(from, resource.getFluid())) {
             return 0;
         }
-
-        if (pushing) {
-            return 0;
+        // Steam networks can exceed nominal capacity, but their integer storage must not wrap.
+        int accepted = Math.min(resource.amount, Integer.MAX_VALUE - getNetwork().getSteam());
+        if (doFill && accepted > 0) {
+            insertSteam(accepted, from);
+            transferredSteam();
         }
-
-        if (resource.getFluid().getID() == FluidRegistry.getFluid("steam").getID()) {
-            if (doFill) {
-                this.insertSteam(resource.amount, from);
-                runTicks = runTicks > 0 ? runTicks : 100;
-            }
-            return resource.amount;
-        }
-
-        if (CrossMod.INDUSTRIALCRAFT && resource.getFluid().getID() == FluidRegistry.getFluid("ic2steam").getID()){
-            if (doFill) {
-                this.insertSteam(resource.amount, from);
-                runTicks = runTicks > 0 ? runTicks : 100;
-            }
-            return resource.amount;
-        }
-        return 0;
+        return accepted;
     }
 
     @Override
     public FluidStack drain(ForgeDirection from, FluidStack resource, boolean doDrain) {
-        ////Steamcraft.log.debug("t");
-
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        if (from.ordinal() != meta) {
+        if (resource == null || resource.tag != null) {
             return null;
         }
-        Fluid fluid = FluidRegistry.getFluid("steam");
-        int drained = resource.amount;
-        if (this.getSteamShare() < drained) {
-            drained = this.getSteamShare();
-        }
-
-        FluidStack stack = new FluidStack(fluid, drained);
-        if (doDrain) {
-            this.decrSteam(drained);
-            runTicks = stack.amount > 0 ? (runTicks > 0 ? runTicks : 100) : runTicks;
-        }
-
-        if (CrossMod.INDUSTRIALCRAFT) {
-            Fluid ic2Fluid = FluidRegistry.getFluid("ic2steam");
-            int ic2Drained = resource.amount;
-            if (this.getSteamShare() > ic2Drained) {
-                ic2Drained = this.getSteamShare();
-            }
-
-            FluidStack ic2Stack = new FluidStack(ic2Fluid, ic2Drained);
-            if (doDrain) {
-                this.decrSteam(ic2Drained);
-                runTicks = ic2Stack.amount > 0 ? (runTicks > 0 ? runTicks : 100) : runTicks;
-            }
-        }
-        return stack;
+        return drainSteam(from, resource.getFluid(), resource.amount, doDrain);
     }
 
     @Override
     public FluidStack drain(ForgeDirection from, int maxDrain, boolean doDrain) {
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        if (from.ordinal() != meta) {
+        return drainSteam(from, FluidRegistry.getFluid("steam"), maxDrain, doDrain);
+    }
+
+    private FluidStack drainSteam(ForgeDirection from, Fluid fluid, int requested, boolean doDrain) {
+        if (!canTransfer() || requested <= 0 || !canDrain(from, fluid)) {
             return null;
         }
-        Fluid fluid = FluidRegistry.getFluid("steam");
-        if (this.getSteamShare() < maxDrain) {
-            maxDrain = this.getSteamShare();
+        int drained = Math.min(requested, availableSteam());
+        if (drained <= 0) {
+            return null;
         }
-        FluidStack stack = new FluidStack(fluid, maxDrain);
         if (doDrain) {
-            this.decrSteam(maxDrain);
-            runTicks = stack.amount > 0 ? (runTicks > 0 ? runTicks : 100) : runTicks;
+            decrSteam(drained);
+            transferredSteam();
         }
-
-        if (CrossMod.INDUSTRIALCRAFT) {
-            Fluid ic2Fluid = FluidRegistry.getFluid("ic2steam");
-            int ic2Drained = maxDrain;
-            if (this.getSteamShare() > ic2Drained) {
-                ic2Drained = this.getSteamShare();
-            }
-            FluidStack ic2Stack = new FluidStack(ic2Fluid, ic2Drained);
-            if (doDrain) {
-                this.decrSteam(ic2Drained);
-                runTicks = ic2Stack.amount > 0 ? (runTicks > 0 ? runTicks : 100) : runTicks;
-            }
-        }
-        return stack;
+        return new FluidStack(fluid, drained);
     }
 
     @Override
     public boolean canFill(ForgeDirection from, Fluid fluid) {
-        if (pushing) {
-            return false; //steam is blasting out! You can't put it back in!
-        }
-
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        return from.ordinal() != meta;
+        return !pushing && isFluidSide(from) && isSteam(fluid);
     }
 
     @Override
     public boolean canDrain(ForgeDirection from, Fluid fluid) {
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        return from.ordinal() != meta;
+        return isFluidSide(from) && isSteam(fluid);
     }
 
     @Override
     public FluidTankInfo[] getTankInfo(ForgeDirection from) {
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        FluidTankInfo[] fti = {};
-        if (from.ordinal() != meta) {
-            return fti;
+        Fluid steam = FluidRegistry.getFluid("steam");
+        if (!isFluidSide(from) || steam == null) {
+            return new FluidTankInfo[0];
         }
-
-        Fluid steam;
-        steam = FluidRegistry.getFluid("steam");
-        if (steam != null) {
-            fti = add(fti, new FluidTank(new FluidStack(steam, this.getSteamShare()), this.getCapacity()).getInfo());
-        }
-
-        steam = FluidRegistry.getFluid("ic2steam");
-        if (steam != null) {
-            fti = add(fti, new FluidTank(new FluidStack(steam, this.getSteamShare()), this.getCapacity()).getInfo());
-        }
-
-        return fti;
+        // Both steam fluid names represent the same store. Advertise that store only once.
+        return new FluidTankInfo[]{new FluidTankInfo(new FluidStack(steam, availableSteam()), getCapacity())};
     }
 
+    private int availableSteam() {
+        SteamNetwork network = getNetwork();
+        if (network == null || network.getCapacity() <= 0) {
+            return 0;
+        }
+        // Integer arithmetic keeps the last mB accessible instead of rounding pressure down.
+        return (int) Math.max(0, Math.min(network.getSteam(),
+            (long) network.getSteam() * getCapacity() / network.getCapacity()));
+    }
+
+    private ForgeDirection fluidSide() {
+        return worldObj == null ? ForgeDirection.UNKNOWN
+            : ForgeDirection.getOrientation(worldObj.getBlockMetadata(xCoord, yCoord, zCoord));
+    }
+
+    private boolean isFluidSide(ForgeDirection from) {
+        return from != null && from != ForgeDirection.UNKNOWN && from == fluidSide();
+    }
+
+    private boolean isSteam(Fluid fluid) {
+        // Registry presence avoids an IC2 class dependency and tolerates missing optional fluids.
+        return fluid != null && (fluid == FluidRegistry.getFluid("steam")
+            || (Config.enableIC2Integration && fluid == FluidRegistry.getFluid("ic2steam")));
+    }
+
+    private boolean canTransfer() {
+        return worldObj != null && !worldObj.isRemote && !isInvalid() && getNetwork() != null;
+    }
+
+    private void transferredSteam() {
+        markDirty();
+        if (runTicks == 0) {
+            runTicks = 100;
+            worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
+        }
+    }
 }

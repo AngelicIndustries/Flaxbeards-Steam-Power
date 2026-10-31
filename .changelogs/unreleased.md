@@ -29,3 +29,7 @@
 * Prevent machine rotation from adding steam twice, and make repeated network joins safe.
 * Save valve changes immediately, respect the handle-side connection, and fix redstone-source placement and server-authoritative valve operation.
 * Detach broken transporters without rejoining them, vent only their stored share, and handle missing tiles safely.
+* Correct steam-converter fluid faces and simulation results, reject invalid transfers, and prevent integer overflow when filling steam networks.
+* Debit converter output only once, honor the requested steam fluid, and expose its shared storage as one tank.
+* Run automatic converter output only on the server, avoid unloaded-neighbor lookups, and animate and save successful transfers.
+* Preserve the converter's final mB during fluid extraction and save wrench mode changes immediately.
