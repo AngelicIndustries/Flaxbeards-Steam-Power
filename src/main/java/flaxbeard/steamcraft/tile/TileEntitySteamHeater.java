@@ -14,6 +14,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntityFurnace;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import org.apache.commons.lang3.tuple.MutablePair;
@@ -26,7 +27,6 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
     //When multiple heaters are used on a furnace, there is a single primary heater
     public boolean isPrimaryHeater;
     private boolean isInitialized = false;
-    private int numHeaters = 0;
     private boolean prevHadYuck = true;
     public int steamConsumption = Config.heaterConsumption;
 
@@ -35,26 +35,53 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
         this.addSidesToGaugeBlacklist(ForgeDirection.VALID_DIRECTIONS);
     }
 
-    public static void replace(TileEntitySteamFurnace te) {
-        TileEntitySteamFurnace furnace = te;
-        if (furnace != null) {
-            ItemStack[] furnaceItemStacks =
-              new ItemStack[]{furnace.getStackInSlot(0), furnace.getStackInSlot(1),
-                furnace.getStackInSlot(2)};
-            int furnaceBurnTime = furnace.furnaceBurnTime;
-            int currentItemBurnTime = furnace.currentItemBurnTime;
-            int furnaceCookTime = furnace.furnaceCookTime;
-            te.getWorldObj()
-              .setTileEntity(te.xCoord, te.yCoord, te.zCoord, new TileEntityFurnace());
-            TileEntityFurnace furnace2 =
-              (TileEntityFurnace) te.getWorldObj().getTileEntity(te.xCoord, te.yCoord, te.zCoord);
-            furnace2.setInventorySlotContents(0, furnaceItemStacks[0]);
-            furnace2.setInventorySlotContents(1, furnaceItemStacks[1]);
-            furnace2.setInventorySlotContents(2, furnaceItemStacks[2]);
-            furnace2.furnaceBurnTime = furnaceBurnTime;
-            furnace2.currentItemBurnTime = currentItemBurnTime;
-            furnace2.furnaceCookTime = furnaceCookTime;
+    public static void replace(TileEntitySteamFurnace furnace) {
+        replaceFurnace(furnace, new TileEntityFurnace());
+    }
+
+    static boolean hasLoadedNeighbors(TileEntity tile) {
+        World world = tile.getWorldObj();
+        if (world == null || !world.blockExists(tile.xCoord, tile.yCoord, tile.zCoord)) return false;
+        // Vanilla tile replacement and dirty notifications can read two blocks away.
+        for (ForgeDirection direction : new ForgeDirection[]{ForgeDirection.NORTH, ForgeDirection.SOUTH,
+            ForgeDirection.WEST, ForgeDirection.EAST}) {
+            if (!world.blockExists(tile.xCoord + direction.offsetX * 2, tile.yCoord,
+                tile.zCoord + direction.offsetZ * 2)) return false;
         }
+        return true;
+    }
+
+    private static TileEntityFurnace replaceFurnace(TileEntityFurnace old, TileEntityFurnace replacement) {
+        if (old == null || old.isInvalid() || old.getWorldObj() == null || old.getWorldObj().isRemote
+            || !hasLoadedNeighbors(old)) return old;
+        World world = old.getWorldObj();
+        if (world.getTileEntity(old.xCoord, old.yCoord, old.zCoord) != old) return old;
+        for (int slot = 0; slot < old.getSizeInventory(); slot++) {
+            ItemStack stack = old.getStackInSlot(slot);
+            replacement.setInventorySlotContents(slot, stack == null ? null : stack.copy());
+        }
+        replacement.furnaceBurnTime = old.furnaceBurnTime;
+        replacement.currentItemBurnTime = old.currentItemBurnTime;
+        replacement.furnaceCookTime = old.furnaceCookTime;
+        if (old.hasCustomInventoryName()) replacement.func_145951_a(old.getInventoryName());
+        replacement.setWorldObj(world);
+        replacement.xCoord = old.xCoord;
+        replacement.yCoord = old.yCoord;
+        replacement.zCoord = old.zCoord;
+        world.setTileEntity(old.xCoord, old.yCoord, old.zCoord, replacement);
+        replacement.markDirty();
+        world.markBlockForUpdate(old.xCoord, old.yCoord, old.zCoord);
+        return replacement;
+    }
+
+    private void updateConnections() {
+        ArrayList<ForgeDirection> directions = new ArrayList<>();
+        ForgeDirection front = myDir();
+        for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
+            if (direction != front) directions.add(direction);
+        }
+        setDistributionDirections(directions.toArray(new ForgeDirection[0]));
+        isInitialized = true;
     }
 
     @Override
@@ -71,96 +98,45 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
 
     @Override
     public void updateEntity() {
-        ForgeDirection dir = myDir();
-        if (!this.isInitialized) {
-            ForgeDirection[] directions = new ForgeDirection[6];
-            int i = 0;
-            for (ForgeDirection direction : ForgeDirection.values()) {
-                if (direction != dir) {
-                    directions[i] = direction;
-                    i++;
-                }
-            }
-            this.setDistributionDirections(directions);
-            this.isInitialized = true;
-        }
+        if (worldObj == null || isInvalid() || !worldObj.blockExists(xCoord, yCoord, zCoord)) return;
+        if (!isInitialized) updateConnections();
         super.updateEntity();
-
-        int meta = this.worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        ArrayList<TileEntitySteamHeater> secondaryHeaters = new ArrayList<TileEntitySteamHeater>();
-        if (this.worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ) != null) {
-            if (this.worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ) instanceof TileEntityFurnace) {
-                numHeaters = 0;
-                if (!this.isPrimaryHeater) {
-                    prevHadYuck = true;
-                }
-                this.isPrimaryHeater = false;
-                for (int i = 0; i < 6; i++) {
-                    ForgeDirection dir2 = ForgeDirection.getOrientation(i);
-                    int x = xCoord + dir.offsetX + dir2.offsetX;
-                    int y = yCoord + dir.offsetY + dir2.offsetY;
-                    int z = zCoord + dir.offsetZ + dir2.offsetZ;
-                    if (this.worldObj.getTileEntity(x, y, z) != null) {
-                        if (this.worldObj.getTileEntity(x, y, z) instanceof TileEntitySteamHeater &&
-                          ((TileEntitySteamHeater) this.worldObj.getTileEntity(x, y, z))
-                          .getSteamShare() >= steamConsumption && this.worldObj.getBlockMetadata
-                          (x, y, z) == ForgeDirection.OPPOSITES[i]) {
-                            this.isPrimaryHeater = (x == xCoord && y == yCoord && z == zCoord);
-                            secondaryHeaters.add((TileEntitySteamHeater) this.worldObj.getTileEntity(x, y, z));
-                            numHeaters++;
-                            if (secondaryHeaters.size() > 4) {
-                                secondaryHeaters.remove(0);
-                            }
-                            numHeaters = Math.min(4, numHeaters);
-                        }
-                    } else {
-                        worldObj.addTileEntity(this);
-                    }
-                }
-                if (this.isPrimaryHeater && numHeaters > 0) {
-                    TileEntityFurnace furnace = (TileEntityFurnace) this.worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
-                    if (!(furnace instanceof TileEntitySteamFurnace) && furnace.getClass() == TileEntityFurnace.class) {
-                        ItemStack[] furnaceItemStacks = new ItemStack[]{furnace.getStackInSlot(0), furnace.getStackInSlot(1), furnace.getStackInSlot(2)};
-                        int furnaceBurnTime = furnace.furnaceBurnTime;
-                        int currentItemBurnTime = furnace.currentItemBurnTime;
-                        int furnaceCookTime = furnace.furnaceCookTime;
-                        this.worldObj.setTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ, new TileEntitySteamFurnace());
-                        TileEntityFurnace furnace2 = (TileEntityFurnace) this.worldObj.getTileEntity(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
-                        furnace2.setInventorySlotContents(0, furnaceItemStacks[0]);
-                        furnace2.setInventorySlotContents(1, furnaceItemStacks[1]);
-                        furnace2.setInventorySlotContents(2, furnaceItemStacks[2]);
-                        furnace2.furnaceBurnTime = furnaceBurnTime;
-                        furnace2.currentItemBurnTime = currentItemBurnTime;
-                        furnace2.furnaceCookTime = furnaceCookTime;
-                    }
-//					if (!prevHadYuck && furnace.getStackInSlot(2) != null && SteamcraftRegistry.steamingRecipes.containsKey(furnace.getStackInSlot(2).getItem())) {
-//						int size = furnace.getStackInSlot(2).stackSize;
-//						ItemStack replacement = new ItemStack(SteamcraftRegistry.steamingRecipes.get(furnace.getStackInSlot(2).getItem()));
-//						replacement.stackSize = size;
-//						furnace.setInventorySlotContents(2, replacement);
-//						this.worldObj.markBlockForUpdate(xCoord+dir.offsetX, yCoord+dir.offsetY, zCoord+dir.offsetZ);
-//					}
-                    if ((furnace.furnaceBurnTime == 1 || furnace.furnaceBurnTime == 0) && this.getSteamShare() >= steamConsumption && canSmelt(furnace)) {
-                        if (furnace.furnaceBurnTime == 0) {
-                            BlockFurnace.updateFurnaceBlockState(true, this.worldObj, xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
-                        }
-                        for (TileEntitySteamHeater heater : secondaryHeaters) {
-                            heater.decrSteam(steamConsumption);
-                        }
-                        furnace.furnaceBurnTime += 3;
-//						if (furnace.furnaceCookTime > 0) {
-//							furnace.furnaceCookTime--;
-//						}
-                        if (this.numHeaters > 1 && furnace.furnaceCookTime > 0) {
-                            furnace.furnaceCookTime += 2 * this.numHeaters - 1;
-                            furnace.furnaceCookTime = Math.min(furnace.furnaceCookTime, 199);
-                        }
-                        this.worldObj.markBlockForUpdate(xCoord + dir.offsetX, yCoord + dir.offsetY, zCoord + dir.offsetZ);
-                        //this.worldObj.markBlockForUpdate(xCoord, yCoord, zCoord);
-                    }
-                    this.prevHadYuck = !(furnace.getStackInSlot(2) == null || !SteamcraftRegistry.steamingRecipes.containsKey(furnace.getStackInSlot(2).getItem()));
-                }
+        if (worldObj.isRemote) return;
+        isPrimaryHeater = false;
+        ForgeDirection front = myDir();
+        if (front == ForgeDirection.UNKNOWN) return;
+        int fx = xCoord + front.offsetX, fy = yCoord + front.offsetY, fz = zCoord + front.offsetZ;
+        TileEntity tile = SteamNetwork.getLoadedTile(worldObj, fx, fy, fz);
+        if (!(tile instanceof TileEntityFurnace) || tile.isInvalid() || !hasLoadedNeighbors(tile)) return;
+        TileEntityFurnace furnace = (TileEntityFurnace) tile;
+        ArrayList<TileEntitySteamHeater> heaters = new ArrayList<>();
+        for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
+            int x = fx + direction.offsetX, y = fy + direction.offsetY, z = fz + direction.offsetZ;
+            TileEntity neighbor = SteamNetwork.getLoadedTile(worldObj, x, y, z);
+            if (!(neighbor instanceof TileEntitySteamHeater) || neighbor.isInvalid()) continue;
+            TileEntitySteamHeater heater = (TileEntitySteamHeater) neighbor;
+            if (heater.getSteamShare() >= steamConsumption && heater.myDir() == direction.getOpposite()) {
+                heaters.add(heater);
+                if (heaters.size() > 4) heaters.remove(0);
             }
+        }
+        isPrimaryHeater = !heaters.isEmpty() && heaters.get(heaters.size() - 1) == this;
+        if (!isPrimaryHeater) return;
+        if (furnace.getClass() == TileEntityFurnace.class) {
+            furnace = replaceFurnace(furnace, new TileEntitySteamFurnace());
+        }
+        if ((furnace.furnaceBurnTime == 1 || furnace.furnaceBurnTime == 0)
+            && getSteamShare() >= steamConsumption && canSmelt(furnace)) {
+            if (furnace.furnaceBurnTime == 0) {
+                BlockFurnace.updateFurnaceBlockState(true, worldObj, fx, fy, fz);
+            }
+            for (TileEntitySteamHeater heater : heaters) heater.decrSteam(steamConsumption);
+            furnace.furnaceBurnTime += 3;
+            if (heaters.size() > 1 && furnace.furnaceCookTime > 0) {
+                furnace.furnaceCookTime = Math.min(furnace.furnaceCookTime + 2 * heaters.size() - 1, 199);
+            }
+            furnace.markDirty();
+            worldObj.markBlockForUpdate(fx, fy, fz);
         }
     }
 
@@ -202,20 +178,11 @@ public class TileEntitySteamHeater extends SteamTransporterTileEntity implements
     @Override
     public boolean onWrench(ItemStack stack, EntityPlayer player, World world,
                             int x, int y, int z, int side, float xO, float yO, float zO) {
-        if (this.getNetwork() != null) {
-            this.getNetwork().split(this, true);
-        }
-        ForgeDirection dir = myDir();
-        ForgeDirection[] directions = new ForgeDirection[6];
-        int i = 0;
-        for (ForgeDirection direction : ForgeDirection.values()) {
-            if (direction != dir) {
-                directions[i] = direction;
-                i++;
-            }
-        }
-        this.setDistributionDirections(directions);
+        if (worldObj == null || worldObj.isRemote || isInvalid() || !worldObj.blockExists(xCoord, yCoord, zCoord)) return false;
+        if (getNetwork() != null) getNetwork().split(this, true);
+        updateConnections();
         SteamNetwork.newOrJoin(this);
+        markDirty();
         return true;
     }
 

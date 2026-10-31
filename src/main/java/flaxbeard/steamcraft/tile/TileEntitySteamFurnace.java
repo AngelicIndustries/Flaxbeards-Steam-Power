@@ -6,6 +6,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.tileentity.TileEntityFurnace;
+import net.minecraft.tileentity.TileEntity;
+import flaxbeard.steamcraft.api.steamnet.SteamNetwork;
 import net.minecraftforge.common.util.ForgeDirection;
 import org.apache.commons.lang3.tuple.MutablePair;
 
@@ -14,23 +16,24 @@ public class TileEntitySteamFurnace extends TileEntityFurnace {
 
     @Override
     public void updateEntity() {
+        if (worldObj == null || worldObj.isRemote || isInvalid() || !TileEntitySteamHeater.hasLoadedNeighbors(this)) return;
+        if (worldObj.getTileEntity(xCoord, yCoord, zCoord) != this) return;
         int numHeaters = 0;
-
-        for (int i = 0; i < 6; i++) {
-            ForgeDirection dir2 = ForgeDirection.getOrientation(i);
-            int x = xCoord + dir2.offsetX;
-            int y = yCoord + dir2.offsetY;
-            int z = zCoord + dir2.offsetZ;
-            if (this.worldObj.getTileEntity(x, y, z) != null) {
-                if (this.worldObj.getTileEntity(x, y, z) instanceof TileEntitySteamHeater && ((TileEntitySteamHeater) this.worldObj.getTileEntity(x, y, z)).getSteamShare() > 2 && this.worldObj.getBlockMetadata(x, y, z) == ForgeDirection.OPPOSITES[i]) {
-                    numHeaters++;
-                }
+        for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
+            TileEntity neighbor = SteamNetwork.getLoadedTile(worldObj, xCoord + direction.offsetX,
+                yCoord + direction.offsetY, zCoord + direction.offsetZ);
+            if (neighbor instanceof TileEntitySteamHeater && !neighbor.isInvalid()) {
+                TileEntitySteamHeater heater = (TileEntitySteamHeater) neighbor;
+                if (heater.getSteamShare() > 2 && heater.myDir() == direction.getOpposite()) numHeaters++;
             }
         }
         if (numHeaters == 0) {
             TileEntitySteamHeater.replace(this);
+            return;
         }
 
+        int previousBurn = furnaceBurnTime;
+        int previousCook = furnaceCookTime;
         boolean flag = this.furnaceBurnTime > 0;
         boolean flag1 = false;
 
@@ -75,7 +78,7 @@ public class TileEntitySteamFurnace extends TileEntityFurnace {
             }
         }
 
-        if (flag1) {
+        if (flag1 || previousBurn != furnaceBurnTime || previousCook != furnaceCookTime) {
             this.markDirty();
         }
     }

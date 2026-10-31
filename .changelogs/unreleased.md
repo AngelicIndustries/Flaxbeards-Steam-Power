@@ -55,3 +55,7 @@
 * Keep pressure-gauge comparator signals within 0–15 and update loaded comparators without reloading adjacent chunks.
 * Check the correct machine face when mounting gauges and rupture discs, and ignore unavailable or invalid supports without loading chunks.
 * Preserve the ruptured disc item when its support is removed, and consume repair plates only on the server while clearing depleted stacks.
+* Preserve custom names, tagged inventory and full counters when steam heaters replace ordinary furnaces or restore them after losing steam.
+* Stop replaced furnaces from processing stale inventory, and apply heater burn time to the installed furnace.
+* Keep heater/furnace processing on the server, pause across unavailable neighboring chunks, and save changed furnace counters.
+* Remove duplicate heater registration and exclude the heating face and unknown direction from heater steam connections.
