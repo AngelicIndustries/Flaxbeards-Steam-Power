@@ -3,7 +3,7 @@ package flaxbeard.steamcraft.block;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 import flaxbeard.steamcraft.Steamcraft;
-import flaxbeard.steamcraft.api.ISteamTransporter;
+import flaxbeard.steamcraft.misc.SteamAttachment;
 import flaxbeard.steamcraft.tile.TileEntitySteamGauge;
 import flaxbeard.steamcraft.tile.TileEntitySteamPipe;
 import net.minecraft.block.Block;
@@ -17,7 +17,6 @@ import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
-import static net.minecraftforge.common.util.ForgeDirection.*;
 
 public class BlockSteamGauge extends BlockContainer {
     public IIcon front;
@@ -35,6 +34,7 @@ public class BlockSteamGauge extends BlockContainer {
 
     @Override
     public int getComparatorInputOverride(World world, int x, int y, int z, int meta) {
+        if (!world.blockExists(x, y, z)) return 0;
         TileEntity te = world.getTileEntity(x, y, z);
         if (te != null && te instanceof TileEntitySteamGauge) {
             return ((TileEntitySteamGauge) te).getComparatorOutput();
@@ -57,11 +57,11 @@ public class BlockSteamGauge extends BlockContainer {
         float x2 = 12 * px;
         float y2 = 12 * px;
         float z2 = px;
-        ForgeDirection dir = ForgeDirection.getOrientation(meta).getOpposite();
-        if (world.getTileEntity(xl + dir.offsetX, yl + dir.offsetY, zl + dir.offsetZ) != null && world.getTileEntity(xl + dir.offsetX, yl + dir.offsetY, zl + dir.offsetZ) instanceof TileEntitySteamPipe) {
+        if (SteamAttachment.getSource(world, xl, yl, zl, meta) instanceof TileEntitySteamPipe) {
             z = -5 * px;
             z2 = -4 * px + 0.0005F;
         }
+        this.setBlockBounds(x, y, z, x2, y2, z2);
         switch (meta) {
             case 5:
                 this.setBlockBounds(z, y, x, z2, y2, x2);
@@ -80,26 +80,17 @@ public class BlockSteamGauge extends BlockContainer {
 
     @Override
     public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int side) {
-        ForgeDirection dir = ForgeDirection.getOrientation(side);
-        return (dir == NORTH && world.getTileEntity(x, y, z + 1) != null && world.getTileEntity(x, y, z + 1) instanceof ISteamTransporter && ((ISteamTransporter) world.getTileEntity(x, y, z + 1)).acceptsGauge(dir.getOpposite())) ||
-                (dir == SOUTH && world.getTileEntity(x, y, z - 1) != null && world.getTileEntity(x, y, z - 1) instanceof ISteamTransporter && ((ISteamTransporter) world.getTileEntity(x, y, z - 1)).acceptsGauge(dir.getOpposite())) ||
-                (dir == WEST && world.getTileEntity(x + 1, y, z) != null && world.getTileEntity(x + 1, y, z) instanceof ISteamTransporter && ((ISteamTransporter) world.getTileEntity(x + 1, y, z)).acceptsGauge(dir.getOpposite())) ||
-                (dir == EAST && world.getTileEntity(x - 1, y, z) != null && world.getTileEntity(x - 1, y, z) instanceof ISteamTransporter && ((ISteamTransporter) world.getTileEntity(x - 1, y, z)).acceptsGauge(dir.getOpposite()));
+        return SteamAttachment.getSource(world, x, y, z, side) != null;
     }
 
     @Override
     public void onNeighborBlockChange(World world, int x, int y, int z, Block neighbor) {
-        if (neighbor != this) {
-            int l = world.getBlockMetadata(x, y, z);
-            boolean flag = false;
-            if (!this.canPlaceBlockOnSide(world, x, y, z, l)) {
-                flag = true;
-            }
-
-            if (flag) {
-                this.dropBlockAsItem(world, x, y, z, l, 0);
-                world.setBlockToAir(x, y, z);
-            }
+        if (world.isRemote || !world.blockExists(x, y, z)) return;
+        int metadata = world.getBlockMetadata(x, y, z);
+        int side = metadata;
+        if (SteamAttachment.isSupportLoaded(world, x, y, z, side) && !canPlaceBlockOnSide(world, x, y, z, side)) {
+            dropBlockAsItem(world, x, y, z, metadata, 0);
+            world.setBlockToAir(x, y, z);
         }
     }
 
@@ -111,7 +102,7 @@ public class BlockSteamGauge extends BlockContainer {
     @Override
     @SideOnly(Side.CLIENT)
     public IIcon getIcon(int side, int meta) {
-        return side == meta || side == ForgeDirection.OPPOSITES[meta] ? (side == meta ? back : front) : blockIcon;
+        return side == meta || side == ForgeDirection.getOrientation(meta).getOpposite().ordinal() ? (side == meta ? back : front) : blockIcon;
     }
 
     @Override

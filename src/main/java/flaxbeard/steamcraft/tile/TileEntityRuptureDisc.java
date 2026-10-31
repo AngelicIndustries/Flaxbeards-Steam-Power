@@ -2,6 +2,7 @@ package flaxbeard.steamcraft.tile;
 
 import flaxbeard.steamcraft.api.ISteamTransporter;
 import flaxbeard.steamcraft.block.BlockRuptureDisc;
+import flaxbeard.steamcraft.misc.SteamAttachment;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
@@ -30,6 +31,7 @@ public class TileEntityRuptureDisc extends TileEntity {
 
     @Override
     public void updateEntity() {
+        if (worldObj == null || isInvalid() || !worldObj.blockExists(xCoord, yCoord, zCoord)) return;
         if (worldObj.isRemote) {
             if (this.isLeaking) {
                 float offset = 10.0F / 16.0F;
@@ -85,39 +87,24 @@ public class TileEntityRuptureDisc extends TileEntity {
 
     }
 
-    private void drainSteam(int s) {
-        ForgeDirection d = myDir().getOpposite();
-        ISteamTransporter source = null;
-        TileEntity te = worldObj.getTileEntity(xCoord + d.offsetX, yCoord, zCoord + d.offsetZ);
-        if (te != null && te instanceof ISteamTransporter) {
-            source = (ISteamTransporter) te;
-            source.decrSteam(s);
-        }
+    private ISteamTransporter getSource() {
+        return SteamAttachment.getSource(worldObj, xCoord, yCoord, zCoord,
+            BlockRuptureDisc.getMeta(worldObj.getBlockMetadata(xCoord, yCoord, zCoord)));
+    }
+
+    private void drainSteam(int amount) {
+        ISteamTransporter source = getSource();
+        if (source != null) source.decrSteam(amount);
     }
 
     private int getSteam() {
-        ForgeDirection d = myDir().getOpposite();
-        ISteamTransporter source = null;
-        TileEntity te = worldObj.getTileEntity(xCoord + d.offsetX, yCoord, zCoord + d.offsetZ);
-        if (te != null && te instanceof ISteamTransporter) {
-            source = (ISteamTransporter) te;
-            if (worldObj.isRemote) {
-                //Steamcraft.log.debug(source.getSteam());
-            }
-            return source.getSteamShare();
-        }
-        return 0;
+        ISteamTransporter source = getSource();
+        return source == null ? 0 : source.getSteamShare();
     }
 
     private float getPressure() {
-        ForgeDirection d = myDir().getOpposite();
-        ISteamTransporter source = null;
-        TileEntity te = worldObj.getTileEntity(xCoord + d.offsetX, yCoord, zCoord + d.offsetZ);
-        if (te != null && te instanceof ISteamTransporter) {
-            source = (ISteamTransporter) te;
-            return source.getPressure();
-        }
-        return 0.0F;
+        ISteamTransporter source = getSource();
+        return source == null ? 0 : source.getPressure();
     }
 
     private ForgeDirection myDir() {

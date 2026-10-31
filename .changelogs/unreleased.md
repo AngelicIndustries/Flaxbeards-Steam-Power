@@ -52,3 +52,6 @@
 * Keep automated water input to one container at a time and allow hoppers to recover empty bottles and refillable containers after draining.
 * Recover water, stored items and paid fuel when rebuilding a flash boiler with a different primary block; spill water above its 80,000 mB capacity and drop conflicting or excess items with their tags.
 * Start new flash-boiler blocks with empty tanks so rebuilding cannot create water.
+* Keep pressure-gauge comparator signals within 0–15 and update loaded comparators without reloading adjacent chunks.
+* Check the correct machine face when mounting gauges and rupture discs, and ignore unavailable or invalid supports without loading chunks.
+* Preserve the ruptured disc item when its support is removed, and consume repair plates only on the server while clearing depleted stacks.

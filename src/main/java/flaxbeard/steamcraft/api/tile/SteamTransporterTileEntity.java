@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 
-public class SteamTransporterTileEntity extends TileEntity implements ISteamTransporter {
+public class SteamTransporterTileEntity extends LoadedTileEntity implements ISteamTransporter {
     public String name = "SteamTransporterTileEntity";
     public float pressureResistance = 0.8F;
     public float lastPressure = -1F;
@@ -49,31 +49,6 @@ public class SteamTransporterTileEntity extends TileEntity implements ISteamTran
     public SteamTransporterTileEntity(int capacity, ForgeDirection[] distributionDirections) {
         this(distributionDirections);
         this.capacity = capacity;
-    }
-
-    @Override
-    public void markDirty() {
-        if (worldObj == null || !worldObj.blockExists(xCoord, yCoord, zCoord)) return;
-        blockMetadata = worldObj.getBlockMetadata(xCoord, yCoord, zCoord);
-        worldObj.markTileEntityChunkModified(xCoord, yCoord, zCoord, this);
-        if (getBlockType() == Blocks.air) return;
-        // Vanilla dirty notifications read neighboring blocks and can reload a detached chunk.
-        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-            int x = xCoord + side.offsetX, y = yCoord + side.offsetY, z = zCoord + side.offsetZ;
-            if (!worldObj.blockExists(x, y, z)) continue;
-            Block neighbor = worldObj.getBlock(x, y, z);
-            neighbor.onNeighborChange(worldObj, x, y, z, xCoord, yCoord, zCoord);
-            if (neighbor.isNormalCube(worldObj, x, y, z)) {
-                x += side.offsetX;
-                y += side.offsetY;
-                z += side.offsetZ;
-                if (!worldObj.blockExists(x, y, z)) continue;
-                Block indirect = worldObj.getBlock(x, y, z);
-                if (indirect.getWeakChanges(worldObj, x, y, z)) {
-                    indirect.onNeighborChange(worldObj, x, y, z, xCoord, yCoord, zCoord);
-                }
-            }
-        }
     }
 
     @Override
