@@ -6,17 +6,17 @@ dependencies {
 
     // Optional integrations are available at compile time only.
     compileOnly rfg.deobf("curse.maven:industrial-craft-242638:2353971")
-    compileOnly "com.github.GTNewHorizons:EnderCore:0.4.8:dev"
-    compileOnly "com.github.GTNewHorizons:EnderIO:2.9.1:dev"
-    compileOnly "com.github.GTNewHorizons:Natura:2.7.5:dev"
-    compileOnly "com.github.GTNewHorizons:NotEnoughItems:2.8.157-GTNH:dev"
+    compileOnly "com.github.GTNewHorizons:EnderCore:0.6.0:dev"
+    compileOnly "com.github.GTNewHorizons:EnderIO:2.11.2:dev"
+    compileOnly "com.github.GTNewHorizons:Natura:2.9.0:dev"
+    compileOnly "com.github.GTNewHorizons:NotEnoughItems:2.9.12-GTNH:dev"
     // Mantle is declared below; the old POM also references an unavailable ForgeMultipart build.
-    compileOnly("com.github.GTNewHorizons:TinkersConstruct:1.13.1-GTNH:dev") { transitive = false }
-    compileOnly "com.github.GTNewHorizons:Mantle:0.4.2:dev"
-    compileOnly "com.github.GTNewHorizons:waila:1.8.2:dev"
+    compileOnly("com.github.GTNewHorizons:TinkersConstruct:1.15.2-GTNH:dev") { transitive = false }
+    compileOnly "com.github.GTNewHorizons:Mantle:0.6.0:dev"
+    compileOnly "com.github.GTNewHorizons:waila:1.20.3:dev"
 
-    compileOnly("com.github.GTNewHorizons:Baubles-Expanded:2.2.26-GTNH:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:BloodMagic:1.9.16:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:Baubles-Expanded:2.3.0-GTNH:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:BloodMagic:1.10.0:dev") { transitive = false }
     compileOnly(rfg.deobf("curse.maven:botania-225643:2236472")) // r1.6-187
     compileOnly(rfg.deobf("curse.maven:cofh-core-69162:2388751")) // 3.1.4-329
     compileOnly(rfg.deobf("curse.maven:enchiridion-76612:2234978")) // 2.0.1, includes Enchiridion 1
@@ -26,21 +26,21 @@ dependencies {
     compileOnly(rfg.deobf("curse.maven:the-twilight-forest-227639:2238492")) // 2.3.7
 
     // Shared development environment. Tinkers is deliberately absent at runtime.
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Baubles-Expanded:2.2.26-GTNH:dev")
-    runtimeOnlyNonPublishable("industries.angelic.wawelauth:WawelAuth:996a655-snapshot:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.7.216:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.157-GTNH:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.52:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:ModularUI2:2.3.92-1.7.10:dev")
-    runtimeOnlyNonPublishable("ganymedes01.etfuturum:Et-Futurum-Requiem:2.6.60-GTNH:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Baubles-Expanded:2.3.0-GTNH:dev")
+    runtimeOnlyNonPublishable("industries.angelic.wawelauth:WawelAuth:4a76a38-snapshot:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.8.5:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.9.12-GTNH:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.12.10:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:ModularUI2:2.4.1-1.7.10:dev")
+    runtimeOnlyNonPublishable("ganymedes01.etfuturum:Et-Futurum-Requiem:2.7.3-GTNH:dev")
     runtimeOnlyNonPublishable("curse.maven:archaicfix-677782:6785842")
-    runtimeOnlyNonPublishable("industries.angelic.angellib:AngelLib:1.0.0:dev")
+    runtimeOnlyNonPublishable("industries.angelic.angellib:AngelLib:1.0.2:dev")
     runtimeOnlyNonPublishable("com.falsepattern:forgelin-mc1.7.10:2.4.3-2.4.10")
     runtimeOnlyNonPublishable("com.falsepattern:falsepatternlib-mc1.7.10:1.12.2:dev")
     runtimeOnlyNonPublishable("industries.angelic.vintageresourcify:VintageResourcify:1.0.6:dev") {
         exclude group: "industries.angelic.angellib", module: "AngelLib"
     }
     runtimeOnlyNonPublishable("industries.angelic.vrap:vrap:1.0.2:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Angelica:2.2.29:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Angelica:2.2.46:dev")
     runtimeOnlyNonPublishable(rfg.deobf("curse.maven:catalogue-vintage-1465746:8384975"))
 }
